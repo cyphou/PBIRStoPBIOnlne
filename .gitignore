@@ -1,0 +1,48 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Artifacts (migration output)
+artifacts/
+!artifacts/.gitkeep
+
+# Logs
+*.log
+hyperd*.log
+
+# Environment
+.env
+
+# Test output
+.pytest_cache/
+.coverage
+htmlcov/
+test_output.txt
+
+# Temp files
+_tmp_*/
+*.tmp
+*.bak
+
+# Generated reports
+*.html
+!docs/**/*.html
+
+# Downloaded PBIRS content
+*.pbix
+*.rdl
+*.rds
+
+# OS files
+Thumbs.db
+.DS_Store

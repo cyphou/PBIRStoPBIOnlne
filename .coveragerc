@@ -1,0 +1,25 @@
+[run]
+source = pbirs_export/,pbi_import/
+omit =
+    tests/*
+    */__pycache__/*
+    */deploy/*
+    pbi_import/rollback.py
+
+[report]
+show_missing = True
+precision = 1
+fail_under = 80
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__
+    raise NotImplementedError
+    pass
+    except ImportError
+    def main
+    input\(
+
+[html]
+directory = htmlcov
+title = PBIRS-to-PBI-Online Coverage Report
