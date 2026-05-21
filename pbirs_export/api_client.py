@@ -17,6 +17,14 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Optional: requests + requests-ntlm for Windows (NTLM/Negotiate) auth
+try:
+    import requests as _requests
+    from requests_ntlm import HttpNtlmAuth as _HttpNtlmAuth
+    _HAS_NTLM = True
+except ImportError:
+    _HAS_NTLM = False
+
 
 class PBIRSClient:
     """Client for Power BI Report Server REST API v2.0."""
@@ -38,6 +46,19 @@ class PBIRSClient:
         self.use_windows_auth = use_windows_auth
         self._base_url = f"{self.server_url}/api/{self.API_VERSION}"
         self._session_cookie: str | None = None
+        self._session: Any = None  # requests.Session when using NTLM
+
+        if self.use_windows_auth:
+            if not _HAS_NTLM:
+                raise ImportError(
+                    "Windows auth requires 'requests' and 'requests-ntlm'. "
+                    "Install with: pip install requests requests-ntlm"
+                )
+            self._session = _requests.Session()
+            self._session.auth = _HttpNtlmAuth(
+                self.username or '', self.password or '', self._session
+            )
+            logger.info("Using NTLM authentication via requests-ntlm")
 
     # ------------------------------------------------------------------
     # Authentication
@@ -81,6 +102,10 @@ class PBIRSClient:
         if params:
             url += "?" + urllib.parse.urlencode(params)
 
+        # Use requests-ntlm session for Windows auth
+        if self._session is not None:
+            return self._request_ntlm(method, url, data, raw)
+
         body = json.dumps(data).encode("utf-8") if data else None
         headers = self._build_auth_header()
 
@@ -103,6 +128,23 @@ class PBIRSClient:
         except urllib.error.URLError as e:
             logger.error("Connection error: %s — %s", url, e.reason)
             raise
+
+    def _request_ntlm(
+        self, method: str, url: str, data: dict | None, raw: bool
+    ) -> Any:
+        """Execute request using requests-ntlm for Windows authentication."""
+        headers = {"Accept": "application/json"}
+        kwargs: dict[str, Any] = {"headers": headers, "timeout": 60}
+        if data is not None:
+            headers["Content-Type"] = "application/json"
+            kwargs["json"] = data
+
+        resp = self._session.request(method, url, **kwargs)
+        resp.raise_for_status()
+
+        if raw:
+            return resp.content
+        return resp.json() if resp.text else {}
 
     def _get(self, endpoint: str, params: dict | None = None) -> Any:
         return self._request("GET", endpoint, params=params)

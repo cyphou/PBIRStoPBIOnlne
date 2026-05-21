@@ -28,6 +28,7 @@ dependencies = []
 deploy = [
     "azure-identity>=1.15.0",
     "requests>=2.31.0",
+    "requests-ntlm>=1.2.0",
     "msal>=1.28.0",
 ]
 dev = [
