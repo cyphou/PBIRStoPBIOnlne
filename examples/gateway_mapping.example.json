@@ -1,0 +1,16 @@
+{
+  "Sales Dashboard": {
+    "gateway_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "datasource_ids": [
+      "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+    ],
+    "_comment": "SQL Server on-prem → gateway datasource"
+  },
+  "Invoice Report": {
+    "gateway_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "datasource_ids": [
+      "zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz"
+    ],
+    "_comment": "Oracle on-prem → gateway datasource"
+  }
+}

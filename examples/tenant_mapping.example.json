@@ -1,0 +1,6 @@
+{
+  "DOMAIN\\ReportViewers": "report-viewers@contoso.com",
+  "DOMAIN\\ReportAdmins": "report-admins@contoso.com",
+  "DOMAIN\\FinanceTeam": "finance-team@contoso.com",
+  "_comment": "Maps on-prem AD groups to Azure AD groups/emails for workspace role assignment"
+}

@@ -1,0 +1,11 @@
+# ============================================================================
+# Power BI Report Server to Power BI Online — Dependencies
+# ============================================================================
+# Core migration uses Python standard library only — zero external deps.
+# Optional dependencies are listed in pyproject.toml [project.optional-dependencies].
+#
+# To install optional dependencies:
+#   pip install -e ".[deploy]"    # Azure AD auth + HTTP client
+#   pip install -e ".[dev]"       # Test framework
+#   pip install -e ".[deploy,dev]" # Both
+# ============================================================================

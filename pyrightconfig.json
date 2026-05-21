@@ -1,0 +1,8 @@
+{
+    "extraPaths": [
+        "pbirs_export",
+        "pbi_import"
+    ],
+    "pythonVersion": "3.12",
+    "reportMissingModuleSource": "none"
+}
