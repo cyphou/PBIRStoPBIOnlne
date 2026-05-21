@@ -160,7 +160,9 @@ class MigrationAssessment:
             return {"score": GREEN, "details": "N/A — not a paginated report"}
 
         rdl_features = item.get("rdl_features", set())
-        unsupported = rdl_features & self.UNSUPPORTED_RDL_FEATURES if isinstance(rdl_features, set) else set()
+        if not isinstance(rdl_features, set):
+            rdl_features = set(rdl_features)
+        unsupported = rdl_features & self.UNSUPPORTED_RDL_FEATURES
 
         if unsupported:
             return {"score": RED, "details": f"Unsupported RDL features: {', '.join(unsupported)}"}
