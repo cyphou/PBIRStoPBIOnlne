@@ -328,7 +328,8 @@ class SecurityExtractor:
                 ],
                 "principals": principals_in_group,
                 "access_pattern": sorted(
-                    {"principal": p, "role": r} for p, r in pattern
+                    ({"principal": p, "role": r} for p, r in pattern),
+                    key=lambda d: (d["principal"], d["role"]),
                 ),
             })
 

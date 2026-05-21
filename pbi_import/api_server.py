@@ -108,7 +108,7 @@ class MigrationAPIHandler(BaseHTTPRequestHandler):
     def _json_response(self, status: int, data: dict) -> None:
         body = json.dumps(data, indent=2, default=str).encode("utf-8")
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

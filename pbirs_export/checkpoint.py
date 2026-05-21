@@ -109,7 +109,13 @@ class CheckpointManager:
         tmp = self.path.with_suffix(".tmp")
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(self._data, f, indent=2)
-        tmp.replace(self.path)  # atomic on most OSes
+        try:
+            tmp.replace(self.path)
+        except OSError:
+            # Windows may briefly lock the target; fall back to unlink+rename
+            if self.path.exists():
+                self.path.unlink()
+            tmp.rename(self.path)
 
     @staticmethod
     def _now() -> str:

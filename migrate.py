@@ -494,13 +494,13 @@ Examples:
     behavior.add_argument("--verbose", action="store_true", help="DEBUG-level logging")
     behavior.add_argument("--parallel", type=int, default=4, help="Parallel operations (default: 4)")
     behavior.add_argument("--config", help="Load configuration from JSON file")
-    behavior.add_argument("--skip-unsupported", action="store_true", default=True, help="Skip unsupported items")
+    behavior.add_argument("--skip-unsupported", action=argparse.BooleanOptionalAction, default=True, help="Skip unsupported items")
     behavior.add_argument("--force-overwrite", action="store_true", help="Overwrite existing items")
     behavior.add_argument("--map-gateway", help="Gateway mapping JSON file")
     behavior.add_argument("--log-file", help="Log to file")
-    behavior.add_argument("--migrate-permissions", action="store_true", default=True, help="Migrate permissions")
-    behavior.add_argument("--migrate-subscriptions", action="store_true", default=True, help="Migrate subscriptions")
-    behavior.add_argument("--migrate-schedules", action="store_true", default=True, help="Migrate refresh schedules")
+    behavior.add_argument("--migrate-permissions", action=argparse.BooleanOptionalAction, default=True, help="Migrate permissions")
+    behavior.add_argument("--migrate-subscriptions", action=argparse.BooleanOptionalAction, default=True, help="Migrate subscriptions")
+    behavior.add_argument("--migrate-schedules", action=argparse.BooleanOptionalAction, default=True, help="Migrate refresh schedules")
     behavior.add_argument("--capacity-id", help="Premium/PPU capacity ID")
 
     return p
