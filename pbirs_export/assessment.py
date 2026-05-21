@@ -95,7 +95,7 @@ class MigrationAssessment:
 
         issues = []
         for ds in datasources:
-            conn_type = ds.get("ConnectionString", "") or ds.get("DataSourceType", "")
+            conn_type = ds.get("ConnectionString") or ds.get("DataSourceType") or ""
             # Check for on-prem only connection types
             if any(k in conn_type.lower() for k in ("file://", "\\\\", "localhost", "127.0.0.1")):
                 issues.append(f"Local/file-based connection: {conn_type[:80]}")

@@ -115,3 +115,24 @@ class TestMigrationAssessment:
         }
         result = MigrationAssessment().assess(catalog)
         assert result["items"][0]["scores"]["gateway_requirements"]["score"] == YELLOW
+
+    def test_none_datasource_fields_no_crash(self):
+        """Shared datasource references return None for ConnectionString/DataSourceType."""
+        catalog = {
+            "items": [{
+                "Id": "6",
+                "Name": "Shared DS Report",
+                "Path": "/Reports/SharedDS",
+                "Type": "Report",
+                "datasources": [
+                    {"ConnectionString": None, "DataSourceType": None, "IsReference": True}
+                ],
+                "policies": [],
+                "subscriptions": [],
+                "custom_visuals": [],
+            }]
+        }
+        result = MigrationAssessment().assess(catalog)
+        # Should not crash; datasource scored as GREEN since no detectable issues
+        assert result["items"][0]["scores"]["datasource_compatibility"]["score"] == GREEN
+        assert result["items"][0]["scores"]["gateway_requirements"]["score"] == GREEN
