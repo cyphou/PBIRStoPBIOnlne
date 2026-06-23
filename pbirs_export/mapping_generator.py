@@ -367,8 +367,10 @@ class MappingGenerator:
     )
 
     @classmethod
-    def _needs_gateway(cls, conn_str: str) -> bool:
+    def _needs_gateway(cls, conn_str: str | None) -> bool:
         """Determine if a connection string requires an on-premises gateway."""
+        if not conn_str:
+            return False
         lower = conn_str.lower()
         # Cloud sources don't need a gateway
         if any(marker in lower for marker in cls.CLOUD_MARKERS):
@@ -379,7 +381,7 @@ class MappingGenerator:
         return False
 
     @staticmethod
-    def _parse_connection_string(conn_str: str) -> tuple[str, str]:
+    def _parse_connection_string(conn_str: str | None) -> tuple[str, str]:
         """Extract server and database from a connection string.
 
         Handles common formats:
@@ -387,6 +389,9 @@ class MappingGenerator:
           Server=server;Database=db
           Host=server;Database=db
         """
+        if not conn_str:
+            return "", ""
+
         server = ""
         database = ""
 

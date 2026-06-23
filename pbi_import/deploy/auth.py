@@ -2,17 +2,21 @@
 Auth — Azure AD / Entra ID authentication for PBI Online REST API.
 
 Supports service principal (client_credentials) and user-delegated (device_code) flows.
+Tokens are cached with their ``expires_in`` lifetime and re-acquired before
+expiry (60-second safety margin) on the next :meth:`get_token` call.
 """
 
 import json
 import logging
 import os
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 PBI_RESOURCE = "https://analysis.windows.net/powerbi/api"
 PBI_SCOPE = f"{PBI_RESOURCE}/.default"
+EXPIRY_MARGIN_SECONDS = 60
 
 
 class PBIAuth:
@@ -30,20 +34,30 @@ class PBIAuth:
         self.client_secret = client_secret
         self.authority = authority or f"https://login.microsoftonline.com/{tenant_id}"
         self._token: str | None = None
+        self._expires_at: float = 0.0
 
     def get_token(self) -> str:
-        """Get a valid access token (service principal flow)."""
+        """Return a valid access token, refreshing if expired or near-expiry.
+
+        A token set directly on ``self._token`` (e.g. via tests or callers
+        injecting a pre-acquired bearer) is honoured even when no expiry has
+        been recorded yet.
+        """
         if self._token:
-            return self._token
+            if self._expires_at == 0.0:
+                return self._token
+            if time.monotonic() < self._expires_at - EXPIRY_MARGIN_SECONDS:
+                return self._token
 
         if self.client_secret:
-            self._token = self._acquire_sp_token()
+            self._token, lifetime = self._acquire_sp_token()
         else:
-            self._token = self._acquire_device_code_token()
+            self._token, lifetime = self._acquire_device_code_token()
 
+        self._expires_at = time.monotonic() + lifetime
         return self._token
 
-    def _acquire_sp_token(self) -> str:
+    def _acquire_sp_token(self) -> tuple[str, float]:
         """Acquire token using client credentials (service principal)."""
         try:
             from msal import ConfidentialClientApplication
@@ -60,9 +74,9 @@ class PBIAuth:
         if "access_token" not in result:
             raise RuntimeError(f"Token acquisition failed: {result.get('error_description', result)}")
 
-        return result["access_token"]
+        return result["access_token"], float(result.get("expires_in", 3600))
 
-    def _acquire_device_code_token(self) -> str:
+    def _acquire_device_code_token(self) -> tuple[str, float]:
         """Acquire token using device code flow (interactive)."""
         try:
             from msal import PublicClientApplication
@@ -81,7 +95,7 @@ class PBIAuth:
         if "access_token" not in result:
             raise RuntimeError(f"Token acquisition failed: {result.get('error_description', result)}")
 
-        return result["access_token"]
+        return result["access_token"], float(result.get("expires_in", 3600))
 
     @classmethod
     def from_env(cls) -> "PBIAuth":

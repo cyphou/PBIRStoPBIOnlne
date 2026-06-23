@@ -1,10 +1,10 @@
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "pbirs-to-pbi-online"
-version = "1.0.0"
+version = "1.7.0"
 description = "Automated migration of Power BI Report Server content to Power BI Online (Service)"
 readme = "README.md"
 license = {text = "MIT"}
