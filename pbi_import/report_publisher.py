@@ -4,6 +4,7 @@ Report Publisher — publishes Power BI reports (.pbix) to PBI Online.
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -22,8 +23,12 @@ class ReportPublisher:
         workspace_id: str,
         name_conflict: str = "CreateOrOverwrite",
         dry_run: bool = False,
+        workers: int = 1,
     ) -> dict:
-        """Publish all Power BI reports from converted directory."""
+        """Publish all Power BI reports from converted directory.
+
+        ``workers`` enables ThreadPoolExecutor-based parallelism for file-level imports.
+        """
         pbix_dir = Path(converted_dir) / "powerbi"
         results: dict[str, list] = {"success": [], "failed": [], "skipped": []}
 
@@ -31,24 +36,30 @@ class ReportPublisher:
             logger.warning("No powerbi directory found at %s", pbix_dir)
             return results
 
-        for pbix_file in pbix_dir.glob("*.pbix"):
+        def _process(pbix_file: Path) -> tuple[str, Any]:
             meta_file = pbix_file.with_suffix(".meta.json")
             meta = {}
             if meta_file.exists():
                 with open(meta_file, encoding="utf-8") as f:
                     meta = json.load(f)
-
             try:
-                result = self._publish_report(
+                return ("ok", self._publish_report(
                     pbix_file, workspace_id, name_conflict, meta, dry_run
-                )
-                results["success"].append(result)
+                ))
             except Exception as e:
                 logger.error("Failed to publish %s: %s", pbix_file.name, e)
-                results["failed"].append({
-                    "name": pbix_file.stem,
-                    "error": str(e),
-                })
+                return ("fail", {"name": pbix_file.stem, "error": str(e)})
+
+        files = list(pbix_dir.glob("*.pbix"))
+        if workers > 1 and len(files) > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for status, payload in [f.result() for f in as_completed(
+                        pool.submit(_process, f) for f in files)]:
+                    results["success" if status == "ok" else "failed"].append(payload)
+        else:
+            for pbix_file in files:
+                status, payload = _process(pbix_file)
+                results["success" if status == "ok" else "failed"].append(payload)
 
         return results
 

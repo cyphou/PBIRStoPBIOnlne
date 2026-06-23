@@ -89,3 +89,32 @@
 - [x] Plugin architecture — extensible content-type handlers via extension points
 - [x] REST API server mode — expose migration pipeline as a service (stdlib http.server)
 - [x] GitHub Actions / Azure DevOps pipeline templates for CI/CD-driven migration
+
+## ✅ v5.0 — PBIRS Feature-Complete Parity (Sprint H)
+- [x] Workspace folder hierarchy preservation (`--preserve-folders`)
+- [x] Linked Report bookmarks / paginated overrides (`--linked-as`)
+- [x] Item-Level Security → App audience bucketing (`--ils-as-audiences`)
+- [x] Custom SSRS role overrides (`--role-map`)
+- [x] CacheRefreshPlan → PBI refresh schedules (`--migrate-cache-plans`)
+- [x] Folder portal branding → workspace branding + theme (`--migrate-branding`)
+
+## ✅ v5.1 — Continuous & Stakeholder-Facing (Sprint I)
+- [x] Continuous sync daemon (`--sync-daemon`)
+- [x] Dependency-aware wave planner (`--plan-waves`, `--wave N`)
+- [x] Side-by-side visual diff HTML report (`--visual-diff-report`)
+
+---
+
+## ✅ v6.0 — Hardening (Sprint J)
+- [x] **Tracing** — stdlib span tracer with nested parent tracking + optional OTLP/HTTP-JSON export. Every phase + early-exit mode emits spans (`--trace-out`, `--otlp-endpoint`)
+- [x] **Streaming catalogs** — lazy `CatalogStream` (list/JSON/JSONL) with `.batched`, `.filter`, `.map` for memory-bound runs at 10k+ items (`--stream-catalog`)
+- [x] **Content-hash idempotency** — SHA1 store keyed by `{ws,path,name}` lets re-runs skip already-published items (`--skip-published`, `--reset-hash-store`)
+- [x] **Benchmark harness** — deterministic synthetic catalog generator + min/max/mean/median timer with built-in scale-test phases (`--benchmark N --benchmark-out`)
+- [x] **Hardened Docker image** — multi-stage non-root build (`pbirs` UID 10001), pre-built venv, `/artifacts` volume, healthcheck
+
+## ✅ v6.1 — PBIRS Gap Closure (Sprint K)
+- [x] **Mobile Reports scaffold** — `MobileReportExtractor` parses `.rsmobile/.json/.xml` tile layouts and emits PBI visual scaffolds (`--migrate-mobile`)
+- [x] **AD → AAD bridge** — `ADGroupBridge` discovers Windows AD principals, splits users/groups, emits CSV manifest, and (with Graph client) provisions Azure AD groups (`--ad-bridge`, `--ensure-aad-groups`)
+- [x] **Gateway auto-create** — `GatewayAutoCreator` parses `.rds` files, plans + creates missing gateway datasources, emits `gateway_mapping.auto.json` (`--gateway-auto --gateway-id`)
+- [x] **DAX auto-fixer** — rule-based rewriter (`IFERROR→DIVIDE`, `COUNTROWS(DISTINCT)→DISTINCTCOUNT`, `IF(HASONEVALUE)→SELECTEDVALUE`, `CONTAINS→IN VALUES`, `EARLIER→TODO`) with per-rule reporting (`--dax-autofix`)
+

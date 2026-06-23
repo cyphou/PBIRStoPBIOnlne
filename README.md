@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| 🏷️ **Version** | 1.3.0 |
-| ✅ **Tests** | 152 passed · 20 test files |
+| 🏷️ **Version** | 1.7.0 |
+| ✅ **Tests** | 513 passed · 24 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 

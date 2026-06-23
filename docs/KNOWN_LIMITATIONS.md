@@ -1,6 +1,6 @@
 # ⚠️ Known Limitations
 
-> **Last updated:** v1.3.0 — many limitations from v1.0 have been addressed. See status column.
+> **Last updated:** v1.7.0 — Hardening + Gap Closure. Most prior gaps now have explicit bridges.
 
 ---
 
@@ -8,9 +8,9 @@
 
 | Area | Limitation | Status |
 |------|-----------|--------|
-| **Mobile Reports** | Deprecated in PBIRS — no PBI Online equivalent | ❌ Not migratable — must rebuild |
+| **Mobile Reports** | Deprecated in PBIRS — no PBI Online equivalent | ✅ IMPROVED (v1.7) — `MobileReportExtractor` emits best-effort `*.scaffold.json` mapping known tile types (Gauge/Chart/Indicator/Map/Navigator/DataGrid/Image/Text) to PBI visuals (`--migrate-mobile`) |
 | **KPIs** | No direct PBI equivalent | ✅ IMPROVED (v1.3) — `ScorecardGenerator` converts to Scorecard/Goals API payloads |
-| **Linked Reports** | Treated as paginated reports | ⚠️ Require Premium capacity |
+| **Linked Reports** | Treated as paginated reports | ✅ IMPROVED (v1.6) — `LinkedReportHandler` emits bookmark or paginated-override payloads (`--linked-as`) |
 
 ## Paginated Reports
 
@@ -34,16 +34,18 @@
 
 | Area | Limitation | Status |
 |------|-----------|--------|
-| **Item-Level Security** | PBI Online uses workspace-level permissions | ⚠️ Granularity lost — consider multiple workspaces |
-| **Custom SSRS Roles** | No automatic mapping for custom roles | ⚠️ Must map manually |
-| **Windows AD Groups** | Must be synced to Azure AD | ⚠️ Tool identifies groups but cannot create Azure AD groups |
+| **Item-Level Security** | PBI Online uses workspace-level permissions | ✅ IMPROVED (v1.6) — `AudienceBucketer` collapses ACL signatures into App audiences (`--ils-as-audiences`) |
+| **Custom SSRS Roles** | No automatic mapping for custom roles | ✅ IMPROVED (v1.6) — `--role-map PATH` plus heuristic suggester |
+| **Windows AD Groups** | Must be synced to Azure AD | ✅ IMPROVED (v1.7) — `ADGroupBridge` discovers AD principals, splits users/groups, emits a CSV manifest, and (with Graph client) provisions AAD groups (`--ad-bridge --ensure-aad-groups`) |
 
 ## Structure
 
 | Area | Limitation | Status |
 |------|-----------|--------|
-| **Folders** | PBI Online workspaces are flat | ⚠️ Folder hierarchy not preserved |
-| **Shared Datasources (.rds)** | Become gateway connections | ⚠️ Manual gateway configuration needed |
+| **Folders** | PBI Online workspaces are flat | ✅ IMPROVED (v1.6) — `WorkspaceFolderManager` recreates the tree via Fabric folders (`--preserve-folders`) |
+| **Shared Datasources (.rds)** | Become gateway connections | ✅ IMPROVED (v1.7) — `GatewayAutoCreator` parses `.rds` (SQL/Oracle/ODBC/AS/PG/MySQL/Snowflake/OData/Web), creates missing gateway datasources via PBI REST, emits `gateway_mapping.auto.json` (`--gateway-auto --gateway-id`) |
+| **Cache Refresh Plans** | No direct equivalent in PBI Online | ✅ IMPROVED (v1.6) — `CachePlanMigrator` emits `refreshSchedule` payloads (`--migrate-cache-plans`) |
+| **Folder portal branding** | Logos / themes not migrated | ✅ IMPROVED (v1.6) — `BrandingMigrator` writes workspace branding + report theme (`--migrate-branding`) |
 
 ## API Limitations
 

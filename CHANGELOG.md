@@ -1,5 +1,106 @@
 # Changelog
 
+## v1.7.0 — Sprint 8 — Hardening & PBIRS Gap Closure
+
+### Hardening (Sprint J) — production readiness
+- **`pbi_import/tracing.py`** (new) — stdlib-only span tracer with nested parent tracking and optional OTLP/HTTP-JSON export. Every phase is wrapped in a span; early-exit modes (benchmark/sync-daemon/wave-planner) emit synthetic spans so traces are always non-empty (`--trace-out PATH`, `--otlp-endpoint URL`)
+- **`pbi_import/catalog_stream.py`** (new) — lazy iterator over huge catalogs (`from_list`, `from_json`, truly streaming `from_jsonl`) with `.batched(n)`, `.filter(pred)`, `.map(fn)`, plus `write_jsonl` helper (`--stream-catalog`)
+- **`pbi_import/content_hash.py`** (new) — SHA1-based idempotency store keyed by `{workspace_id, path, name}` with content-aware re-publish detection. Re-runs skip already-published items (`--skip-published`, `--reset-hash-store`)
+- **`pbi_import/benchmark_harness.py`** (new) — deterministic synthetic catalog generator + min/max/mean/median timer. Three built-in phases (`stream_iter_only`, `stream_filter_powerbi`, `assessment`) run end-to-end against synthetic catalogs (`--benchmark N --benchmark-out PATH`)
+- **`Dockerfile`** (hardened) — multi-stage build with non-root `pbirs` user (UID 10001, no shell, no home), pre-built `/opt/venv` from `requirements.txt`, `/artifacts` volume, healthcheck, and pinned entrypoint
+
+### Gap closure (Sprint K) — close remaining PBIRS deltas
+- **`pbi_import/mobile_extractor.py`** (new) — best-effort scaffold for deprecated PBIRS Mobile Reports. Parses `.rsmobile/.json/.xml` tile layouts, maps 8 known visual types (Gauge→gauge, Chart→chart, Indicator→kpi, …), writes `{stem}.scaffold.json` per report (`--migrate-mobile`)
+- **`pbi_import/ad_group_bridge.py`** (new) — discovers Windows AD principals in PBIRS permissions, splits users vs groups via heuristics, suggests Azure AD display names + mail nicknames, writes a CSV manifest, and optionally calls Graph to provision AAD groups (`--ad-bridge`, `--ad-bridge-csv PATH`, `--ensure-aad-groups`)
+- **`pbi_import/gateway_autocreate.py`** (new) — parses `.rds` connection strings (SQL/Oracle/ODBC/AS/PostgreSQL/MySQL/Snowflake/OData/Web), plans missing gateway datasources, creates them via PBI REST, and emits a `gateway_mapping.auto.json` consumable by `GatewayMapper` (`--gateway-auto --gateway-id GW`)
+- **`pbi_import/dax_auto_fixer.py`** (new) — rule-based DAX rewriter (`IFERROR`→`DIVIDE`, `COUNTROWS(DISTINCT(c))`→`DISTINCTCOUNT(c)`, `IF(HASONEVALUE,…)`→`SELECTEDVALUE`, `CONTAINS`→`IN VALUES`, `EARLIER`→TODO marker). Reports per-rule statistics (`--dax-autofix`)
+
+### CLI
+- 13 new flags grouped under "Hardening (tracing / streaming / idempotency / bench)" and "Gap closure (mobile / AD / gateway / DAX)"
+- New `_run_benchmark` early-exit mode
+- New `_finalise_early_exit` helper guarantees `--trace-out` and `--otlp-endpoint` work for benchmark/sync-daemon/wave-planner modes
+- Phase-level spans (`phase.assess`, `phase.export`, `phase.convert`, `phase.import`, `phase.validate`) automatically emitted when tracing is enabled
+
+### Tests
+- **`tests/test_sprint_jk.py`** (new) — 46 tests across 9 classes covering all 8 new modules plus CLI integration. Total suite now **513 tests passing** (+46 from 467).
+
+---
+
+## v1.6.0 — Sprint 7 — PBIRS Parity Closeout & Beyond
+
+### Parity (Sprint H) — closes the gap chart
+- **`pbi_import/workspace_folder_manager.py`** (new) — recreates PBIRS folder hierarchy as PBI Online workspace folders (`--preserve-folders`)
+- **`pbi_import/linked_report_handler.py`** (new) — converts PBIRS Linked Reports via three strategies: `bookmarks`, `paginated`, `skip` (`--linked-as STRATEGY`)
+- **`pbi_import/audience_bucketer.py`** (new) — groups item-level security into PBI Online App audiences by ACL signature, with overflow collapsing (`--ils-as-audiences`)
+- **`pbi_import/role_mapper.py`** (new) — pluggable SSRS → PBI role overrides via JSON file plus heuristic suggester (`--role-map PATH`)
+- **`pbi_import/cache_plan_migrator.py`** (new) — translates PBIRS `CacheRefreshPlan` into PBI `refreshSchedule` payloads (`--migrate-cache-plans`)
+- **`pbi_import/branding_migrator.py`** (new) — maps PBIRS portal branding to PBI workspace branding + report theme JSON (`--migrate-branding --brand-file PATH`)
+
+### Beyond parity (Sprint I)
+- **`pbi_import/sync_daemon.py`** (new) — long-lived poller for incremental PBIRS → PBI replay with graceful SIGINT/SIGTERM handling (`--sync-daemon --sync-poll-interval N --sync-max-iterations N`)
+- **`pbi_import/wave_planner.py`** (new) — dependency-aware topological wave planner with cycle detection and chunking (`--plan-waves --wave-out PATH --wave N`)
+- **`pbi_import/visual_diff_report.py`** (new) — side-by-side HTML report with embedded base64 screenshots, summary table, and per-pair diff badges (`--visual-diff-report PATH --diff-pairs PATH`)
+
+### CLI — 13 new flags wired in `migrate.py`
+- Parity group: `--preserve-folders`, `--linked-as`, `--ils-as-audiences`, `--role-map`, `--migrate-cache-plans`, `--migrate-branding`, `--brand-file`
+- Beyond parity group: `--sync-daemon`, `--sync-poll-interval`, `--sync-max-iterations`, `--plan-waves`, `--wave-out`, `--wave`, `--visual-diff-report`, `--diff-pairs`
+- `--sync-daemon` and `--plan-waves` are early-exit modes (no phases run)
+
+### Tests
+- **`tests/test_sprint_hi.py`** (new) — 41 tests across 10 classes covering every new module + CLI integration
+- Total: 467 tests passing (was 426)
+
+---
+
+## v1.5.0 — Sprint 6 — Scale, Extensibility & Operational Polish
+
+### Pre-flight & Resume (Sprint F)
+- **`pbi_import/preflight.py`** (new) — `PreflightRunner` validates PBIRS connectivity, PBI Online auth, workspace access, gateway-mapping file, and folder-mapping file before any writes
+- **`pbi_import/pipeline_checkpoint.py`** (new) — `PipelineCheckpoint` tracks per-phase completion in `pipeline.checkpoint.json` so interrupted `--full` runs can resume
+- **`migrate.py`** — new CLI flags: `--preflight`, `--resume`, `--reset-checkpoint`, `--metrics-out`
+- **`migrate.py`** — dry-run summary table after import (`_print_publish_summary`)
+
+### Multi-Workspace & Plugins (Sprint E)
+- **`migrate.py`** — `--map-folder PATH` flag wires `FolderMapper` + `MultiWorkspaceManager` to dispatch items across multiple PBI workspaces based on folder rules
+- **`migrate.py`** — `--plugin NAME=PATH` flag (repeatable) loads plugin modules via `PluginManager`; `pre_<phase>` / `post_<phase>` hooks invoked around each phase
+- **`migrate.py`** — `--parallelism N` flag forwards to all 3 publishers for file-level parallel import
+- **`pbi_import/report_publisher.py`**, **`dataset_publisher.py`**, **`paginated_publisher.py`** — added `workers` kwarg with `ThreadPoolExecutor` for parallel `.pbix` / `.rdl` / dataset uploads
+
+### Observability (Sprint G)
+- **`migrate.py`** — `_emit_prometheus_metrics()` writes `migration_duration_seconds`, `migration_exit_code`, `migration_items_exported`, `migration_validation_passed/failed`, and assessment summary gauges in Prometheus exposition format
+
+### Tests
+- **`tests/test_sprint_efg.py`** (new) — 21 tests: pipeline checkpoint round-trip & recovery, preflight per-check scenarios, publisher parallelism, CLI flags (`--preflight`, `--resume`, `--reset-checkpoint`, `--metrics-out`, `--parallelism`, `--plugin`), multi-workspace dispatch
+- Total: 426 tests passing (was 405)
+
+---
+
+## v1.4.0 — Sprint 5 — CLI Hardening & Production Reliability
+
+### CLI Orchestrator Rewrite
+- **`migrate.py`** — full rewrite of `_run_import` and `_run_validation` to use real publisher / mapper / validator APIs (previously called nonexistent `apply_*` methods, would crash at runtime)
+- **`migrate.py`** — new `_phase_dirs(args, phase)` helper chains `--full` subfolders (`./export`, `./converted`) so phases don't clobber each other
+- **`migrate.py`** — `_run_export` now propagates `--include-pattern` / `--exclude-pattern` to the catalog extractor
+- **`migrate.py`** — new CLI flags: `--tenant-id`, `--client-id`, `--client-secret`, `--pbi-token`, `--continue-on-error`, `--event-log`
+
+### PBI Online Client Hardening
+- **`pbi_import/deploy/client_factory.py`** (new) — `PbiClientFactory.from_args()` resolves auth from CLI flags or env (`PBI_ACCESS_TOKEN`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
+- **`pbi_import/deploy/pbi_client.py`** — added retry loop (5 attempts) on 429/5xx with `Retry-After` header honouring and exponential backoff + jitter; added `token_provider` callable for refresh-on-demand
+- **`pbi_import/deploy/auth.py`** — `get_token()` now caches with expiry tracking and refreshes within `EXPIRY_MARGIN_SECONDS = 60` of expiry; `_acquire_*_token()` return `(token, lifetime)` tuples
+
+### Observability & Validation
+- **`pbi_import/event_log.py`** (new) — thread-safe JSONL append-only event log; wired into `migrate.main()` to emit `pipeline.start/end` + `phase_start/phase_end` per phase
+- **`pbi_import/validator.py`** — added `validate_all(input_dir, workspace_id)`, `_load_catalog()`, `generate_html_report()` to support the rewritten validate phase
+
+### Build Fix
+- **`pyproject.toml`** — fixed bogus `build-backend = "setuptools.backends._legacy:_Backend"` → `setuptools.build_meta` (was breaking `pip install -e .`)
+
+### Tests
+- **`tests/test_cli_smoke.py`** (new) — 7 E2E smoke tests: assess-only, import-only, validate-only, full-pipeline, `_phase_dirs` chaining, export pattern propagation, event log JSONL output
+- Total: 405 tests passing (was 398)
+
+---
+
 ## v1.3.0 — Sprint 4 — Advanced Conversions
 
 ### Power Automate Integration

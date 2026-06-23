@@ -5,45 +5,87 @@ PBI Client — Power BI REST API wrapper for workspace, report, and dataset oper
 import base64
 import json
 import logging
+import random
 import time
-from typing import Any
+from typing import Any, Callable
 from urllib.request import Request, urlopen
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 logger = logging.getLogger(__name__)
 
 PBI_BASE_URL = "https://api.powerbi.com/v1.0/myorg"
+RETRY_STATUSES = (429, 500, 502, 503, 504)
+MAX_RETRIES = 5
+BASE_BACKOFF = 1.0  # seconds
 
 
 class PBIClient:
     """Thin wrapper around the Power BI REST API."""
 
-    def __init__(self, access_token: str):
+    def __init__(
+        self,
+        access_token: str | None = None,
+        token_provider: Callable[[], str] | None = None,
+    ):
+        if not access_token and not token_provider:
+            raise ValueError("PBIClient requires either access_token or token_provider")
         self._token = access_token
+        self._token_provider = token_provider
+
+    def _current_token(self) -> str:
+        if self._token_provider:
+            self._token = self._token_provider()
+        return self._token or ""
 
     def _headers(self) -> dict:
         return {
-            "Authorization": f"Bearer {self._token}",
+            "Authorization": f"Bearer {self._current_token()}",
             "Content-Type": "application/json",
         }
 
     def _request(self, method: str, path: str, body: bytes | None = None, content_type: str | None = None) -> Any:
         url = f"{PBI_BASE_URL}{path}"
-        headers = self._headers()
-        if content_type:
-            headers["Content-Type"] = content_type
 
-        req = Request(url, data=body, headers=headers, method=method)
-        try:
-            with urlopen(req) as resp:
-                data = resp.read()
-                if data:
-                    return json.loads(data)
-                return {}
-        except HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-            logger.error("PBI API error %s %s: %s %s", method, path, e.code, error_body[:500])
-            raise
+        for attempt in range(1, MAX_RETRIES + 1):
+            headers = self._headers()
+            if content_type:
+                headers["Content-Type"] = content_type
+            req = Request(url, data=body, headers=headers, method=method)
+            try:
+                with urlopen(req) as resp:
+                    data = resp.read()
+                    return json.loads(data) if data else {}
+            except HTTPError as e:
+                if e.code in RETRY_STATUSES and attempt < MAX_RETRIES:
+                    retry_after = self._retry_after(e, attempt)
+                    logger.warning(
+                        "PBI API %s %s -> %s, retry %d/%d in %.1fs",
+                        method, path, e.code, attempt, MAX_RETRIES, retry_after,
+                    )
+                    time.sleep(retry_after)
+                    continue
+                error_body = e.read().decode("utf-8", errors="replace") if e.fp else ""
+                logger.error("PBI API error %s %s: %s %s", method, path, e.code, error_body[:500])
+                raise
+            except URLError as e:
+                if attempt < MAX_RETRIES:
+                    backoff = BASE_BACKOFF * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
+                    logger.warning("PBI API network error: %s, retry %d/%d in %.1fs", e, attempt, MAX_RETRIES, backoff)
+                    time.sleep(backoff)
+                    continue
+                raise
+        raise RuntimeError(f"PBI API {method} {path} failed after {MAX_RETRIES} retries")
+
+    @staticmethod
+    def _retry_after(error: HTTPError, attempt: int) -> float:
+        """Honour ``Retry-After`` header when present, else exponential backoff."""
+        header = error.headers.get("Retry-After") if error.headers else None
+        if header:
+            try:
+                return float(header)
+            except ValueError:
+                pass
+        return BASE_BACKOFF * (2 ** (attempt - 1)) + random.uniform(0, 0.5)
 
     # ------------------------------------------------------------------
     # Workspaces (Groups)

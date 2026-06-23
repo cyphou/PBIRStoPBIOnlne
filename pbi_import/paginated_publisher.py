@@ -4,6 +4,7 @@ Paginated Publisher — publishes paginated reports (.rdl) to PBI Online via RES
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ class PaginatedPublisher:
         converted_dir: str,
         workspace_id: str,
         dry_run: bool = False,
+        workers: int = 1,
     ) -> dict:
         """Publish all paginated reports from converted directory."""
         rdl_dir = Path(converted_dir) / "paginated"
@@ -30,22 +32,28 @@ class PaginatedPublisher:
             logger.info("No paginated directory found at %s", rdl_dir)
             return results
 
-        for rdl_file in rdl_dir.glob("*.rdl"):
+        def _process(rdl_file: Path) -> tuple[str, Any]:
             meta_file = rdl_file.with_suffix(".meta.json")
             meta = {}
             if meta_file.exists():
                 with open(meta_file, encoding="utf-8") as f:
                     meta = json.load(f)
-
             try:
-                result = self._publish_rdl(rdl_file, workspace_id, meta, dry_run)
-                results["success"].append(result)
+                return ("ok", self._publish_rdl(rdl_file, workspace_id, meta, dry_run))
             except Exception as e:
                 logger.error("Failed to publish paginated report %s: %s", rdl_file.name, e)
-                results["failed"].append({
-                    "name": rdl_file.stem,
-                    "error": str(e),
-                })
+                return ("fail", {"name": rdl_file.stem, "error": str(e)})
+
+        files = list(rdl_dir.glob("*.rdl"))
+        if workers > 1 and len(files) > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for status, payload in [f.result() for f in as_completed(
+                        pool.submit(_process, f) for f in files)]:
+                    results["success" if status == "ok" else "failed"].append(payload)
+        else:
+            for rdl_file in files:
+                status, payload = _process(rdl_file)
+                results["success" if status == "ok" else "failed"].append(payload)
 
         return results
 
