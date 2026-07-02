@@ -62,6 +62,19 @@ class TestDataDrivenConverter:
         result = conv.convert_all({"subscriptions": [_dd_sub_email()]})
         assert "dbo.Subscriptions" in result["plans"][0]["original_query"]
 
+    def test_db_query_metadata_takes_precedence(self):
+        sub = _dd_sub_email()
+        sub["DbQueryMetadata"] = {
+            "query_text": "SELECT email FROM dbo.DbBridgeSource WHERE token='abc'",
+            "query_source": "reportserver_db",
+        }
+        conv = DataDrivenConverter()
+        result = conv.convert_all({"subscriptions": [sub]})
+        plan = result["plans"][0]
+        assert "DbBridgeSource" in plan["original_query"]
+        assert plan["query_source"] == "reportserver_db"
+        assert "token=***" in plan["query_preview_redacted"]
+
     def test_non_data_driven_ignored(self):
         normal_sub = {
             "SubscriptionID": "n-1",
@@ -83,6 +96,9 @@ class TestDataDrivenConverter:
         csv_files = [p for p in paths if p.suffix == ".csv"]
         assert len(json_files) >= 2
         assert len(csv_files) >= 1
+        csv_text = csv_files[0].read_text(encoding="utf-8")
+        assert "query_source" in csv_text
+        assert "query_preview_redacted" in csv_text
 
     def test_migration_notes(self):
         conv = DataDrivenConverter()

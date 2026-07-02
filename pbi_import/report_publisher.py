@@ -8,14 +8,23 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from pbi_import.large_file_handler import LargeFileHandler
+
 logger = logging.getLogger(__name__)
 
 
 class ReportPublisher:
     """Publish Power BI reports to PBI Online workspaces."""
 
-    def __init__(self, pbi_client: Any):
+    def __init__(
+        self,
+        pbi_client: Any,
+        large_file_threshold_mb: int = 1024,
+        enable_large_file_upload: bool = True,
+    ):
         self.client = pbi_client
+        self.large_file_threshold_mb = large_file_threshold_mb
+        self.enable_large_file_upload = enable_large_file_upload
 
     def publish_all(
         self,
@@ -73,22 +82,58 @@ class ReportPublisher:
     ) -> dict:
         """Publish a single .pbix file."""
         display_name = pbix_path.stem
+        file_size_mb = round(pbix_path.stat().st_size / (1024 * 1024), 1)
 
         if dry_run:
-            logger.info("[DRY RUN] Would publish %s to workspace %s", display_name, workspace_id)
-            return {"name": display_name, "status": "dry_run"}
+            strategy = self._select_import_strategy(pbix_path)
+            logger.info(
+                "[DRY RUN] Would publish %s to workspace %s (strategy=%s, size_mb=%.1f)",
+                display_name,
+                workspace_id,
+                strategy,
+                file_size_mb,
+            )
+            return {
+                "name": display_name,
+                "status": "dry_run",
+                "strategy": strategy,
+                "size_mb": file_size_mb,
+            }
 
-        logger.info("Publishing %s to workspace %s", display_name, workspace_id)
-
-        with open(pbix_path, "rb") as f:
-            content = f.read()
-
-        import_result = self.client.import_pbix(
-            workspace_id=workspace_id,
-            display_name=display_name,
-            file_content=content,
-            name_conflict=name_conflict,
+        strategy = self._select_import_strategy(pbix_path)
+        logger.info(
+            "Publishing %s to workspace %s (strategy=%s, size_mb=%.1f)",
+            display_name,
+            workspace_id,
+            strategy,
+            file_size_mb,
         )
+
+        if strategy == "large":
+            self._ensure_large_upload_support()
+            try:
+                import_result = LargeFileHandler(self.client).upload(
+                    workspace_id=workspace_id,
+                    file_path=str(pbix_path),
+                    display_name=display_name,
+                    dry_run=False,
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    "Large PBIX upload failed. "
+                    "Confirm workspace/tenant import settings and verify enhanced import API access. "
+                    f"Original error: {e}"
+                ) from e
+        else:
+            with open(pbix_path, "rb") as f:
+                content = f.read()
+
+            import_result = self.client.import_pbix(
+                workspace_id=workspace_id,
+                display_name=display_name,
+                file_content=content,
+                name_conflict=name_conflict,
+            )
 
         report_id = import_result.get("id", "")
         dataset_id = import_result.get("datasets", [{}])[0].get("id", "") if import_result.get("datasets") else ""
@@ -111,4 +156,26 @@ class ReportPublisher:
             "report_id": report_id,
             "dataset_id": dataset_id,
             "status": "published",
+            "strategy": strategy,
+            "size_mb": file_size_mb,
         }
+
+    def _select_import_strategy(self, pbix_path: Path) -> str:
+        """Choose import strategy based on file size and feature flags."""
+        if not self.enable_large_file_upload:
+            return "standard"
+        if LargeFileHandler.needs_chunked_upload(
+            str(pbix_path), threshold_mb=self.large_file_threshold_mb
+        ):
+            return "large"
+        return "standard"
+
+    def _ensure_large_upload_support(self) -> None:
+        """Ensure client has enhanced import methods required by LargeFileHandler."""
+        required = ("create_temporary_upload_location", "upload_chunk", "complete_upload")
+        missing = [name for name in required if not hasattr(self.client, name)]
+        if missing:
+            raise RuntimeError(
+                "PBI client does not support enhanced large-file import methods: "
+                + ", ".join(missing)
+            )

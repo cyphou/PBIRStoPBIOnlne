@@ -50,7 +50,7 @@ Wave 1 = GREEN items (quick wins). Wave 2 = YELLOW items (minor adjustments). Wa
 
 ### Can Mobile Reports be migrated?
 
-No. Mobile Reports are deprecated and have no PBI Online equivalent. They are flagged in the assessment report and must be rebuilt.
+Not directly to a native PBI Online artifact. Mobile Reports are still deprecated, but the tool can now generate a **best-effort scaffold** (`*.scaffold.json`) from mobile layouts via `--migrate-mobile` to accelerate manual rebuild.
 
 ### Do paginated reports require Premium?
 
@@ -106,7 +106,9 @@ However, PBI Online uses **workspace-level** permissions — item-level granular
 
 ### What about Windows AD groups?
 
-On-prem AD groups must be **synced to Azure AD**. The `security_extractor` identifies all groups but cannot create Azure AD groups.
+On-prem AD groups still need an Azure AD target, but the migration now includes an **AD bridge workflow**:
+- `ADGroupBridge` discovers principals and emits a CSV manifest (`--ad-bridge`, `--ad-bridge-csv`)
+- Optional Azure AD provisioning can be executed when Graph access is available (`--ensure-aad-groups`)
 
 ---
 

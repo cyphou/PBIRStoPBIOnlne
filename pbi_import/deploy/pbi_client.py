@@ -156,6 +156,54 @@ class PBIClient:
         path = f"/groups/{workspace_id}/imports?datasetDisplayName={display_name}&nameConflict=CreateOrOverwrite"
         return self._request("POST", path, file_content, content_type="application/octet-stream")
 
+    def create_temporary_upload_location(self, workspace_id: str) -> str:
+        """Create temporary upload location for large PBIX imports."""
+        path = f"/groups/{workspace_id}/imports/createTemporaryUploadLocation"
+        result = self._request("POST", path, body=b"{}")
+        upload_url = result.get("url") or result.get("uploadUrl")
+        if not upload_url:
+            raise RuntimeError(f"CreateTemporaryUploadLocation returned no URL: {result}")
+        return str(upload_url)
+
+    def upload_chunk(
+        self,
+        upload_url: str,
+        chunk_data: bytes,
+        offset: int,
+        total_size: int,
+    ) -> None:
+        """Upload one chunk to a temporary upload URL using byte range headers."""
+        end = offset + len(chunk_data) - 1
+        req = Request(
+            upload_url,
+            data=chunk_data,
+            method="PUT",
+            headers={
+                "Content-Length": str(len(chunk_data)),
+                "Content-Range": f"bytes {offset}-{end}/{total_size}",
+            },
+        )
+        with urlopen(req):
+            return
+
+    def complete_upload(
+        self,
+        workspace_id: str,
+        upload_url: str,
+        display_name: str,
+        name_conflict: str = "CreateOrOverwrite",
+    ) -> dict:
+        """Complete enhanced upload and trigger import processing."""
+        path = (
+            f"/groups/{workspace_id}/imports?datasetDisplayName={display_name}"
+            f"&nameConflict={name_conflict}&fileUrl={upload_url}"
+        )
+        result = self._request("POST", path, body=b"{}")
+        import_id = result.get("id", "")
+        if import_id:
+            return self._poll_import(workspace_id, import_id)
+        return result
+
     def _poll_import(self, workspace_id: str, import_id: str, timeout: int = 300) -> dict:
         """Poll import status until complete."""
         end_time = time.monotonic() + timeout
@@ -223,6 +271,13 @@ class PBIClient:
 
     def list_gateways(self) -> list[dict]:
         return self._request("GET", "/gateways").get("value", [])
+
+    def list_gateway_datasources(self, gateway_id: str) -> list[dict]:
+        return self._request("GET", f"/gateways/{gateway_id}/datasources").get("value", [])
+
+    def create_gateway_datasource(self, gateway_id: str, payload: dict) -> dict:
+        body = json.dumps(payload).encode()
+        return self._request("POST", f"/gateways/{gateway_id}/datasources", body)
 
     # ------------------------------------------------------------------
     # Subscriptions

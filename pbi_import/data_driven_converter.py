@@ -14,6 +14,7 @@ support data-driven subscriptions natively, so this module generates:
 import csv
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +92,10 @@ class DataDrivenConverter:
         report_path = sub.get("Report", "")
         report_name = report_path.rsplit("/", 1)[-1] if report_path else ""
         delivery = sub.get("DeliveryExtension", "")
-        query = sub.get("DataDrivenQuery", sub.get("QueryDefinition", ""))
+        db_meta = sub.get("DbQueryMetadata") or {}
+        db_query = db_meta.get("query_text", "") if isinstance(db_meta, dict) else ""
+        query = db_query or sub.get("DataDrivenQuery", sub.get("QueryDefinition", ""))
+        query_source = "reportserver_db" if db_query else "pbirs_api"
 
         strategy = self._determine_strategy(sub)
 
@@ -103,6 +107,8 @@ class DataDrivenConverter:
             "delivery_extension": delivery,
             "strategy": strategy,
             "original_query": query,
+            "query_source": query_source,
+            "query_preview_redacted": self._redact_query(query)[:200],
             "parameter_fields": self._extract_field_mapping(sub),
             "migration_notes": self._generate_notes(sub, strategy),
         }
@@ -168,12 +174,31 @@ class DataDrivenConverter:
         fields = plan.get("parameter_fields", [])
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["parameter_name", "static_value", "field_reference", "pbi_mapping", "notes"])
+            writer.writerow([
+                "parameter_name",
+                "static_value",
+                "field_reference",
+                "pbi_mapping",
+                "query_source",
+                "query_preview_redacted",
+                "notes",
+            ])
             for field in fields:
                 writer.writerow([
                     field.get("parameter_name", ""),
                     field.get("static_value", ""),
                     field.get("field_reference", ""),
                     "",  # pbi_mapping — user fills this
+                    plan.get("query_source", ""),
+                    plan.get("query_preview_redacted", ""),
                     field.get("note", ""),
                 ])
+
+    @staticmethod
+    def _redact_query(query: str) -> str:
+        """Redact obvious secret patterns before writing query previews."""
+        if not query:
+            return ""
+        out = re.sub(r"(?i)(password|pwd|token|apikey|api_key)\s*[:=]\s*['\"]?[^'\"\s;]+", r"\1=***", query)
+        out = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "***@***", out)
+        return out
