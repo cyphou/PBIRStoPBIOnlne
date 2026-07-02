@@ -57,10 +57,40 @@ class VisualDiffReport:
         passed = sum(1 for r in results if r.get("status") == "pass")
         failed = sum(1 for r in results if r.get("status") == "fail")
         error = sum(1 for r in results if r.get("status") == "error")
+        scored = []
+        for r in results:
+            score = VisualDiffReport._risk_score(r)
+            r["risk_score"] = score
+            r["risk_level"] = "high" if score >= 0.75 else "medium" if score >= 0.35 else "low"
+            scored.append(r)
+
+        top_offenders = sorted(scored, key=lambda x: x.get("risk_score", 0.0), reverse=True)[:5]
+        high_risk = [r for r in scored if r.get("risk_score", 0.0) >= 0.75]
         return {
             "total": total, "pass": passed, "fail": failed, "error": error,
             "pass_rate": round(passed / total, 4) if total else 0.0,
+            "high_risk_count": len(high_risk),
+            "top_offenders": [
+                {
+                    "name": r.get("name", "report"),
+                    "status": r.get("status", "error"),
+                    "difference": r.get("difference", 1.0),
+                    "risk_score": r.get("risk_score", 1.0),
+                    "risk_level": r.get("risk_level", "high"),
+                }
+                for r in top_offenders
+            ],
         }
+
+    @staticmethod
+    def _risk_score(result: dict) -> float:
+        status = result.get("status", "error")
+        if status == "error":
+            return 1.0
+        diff = float(result.get("difference", 0.0) or 0.0)
+        if status == "fail":
+            return min(1.0, 0.7 + min(diff, 0.3))
+        return min(1.0, diff * 0.8)
 
     def _embed(self, path: str) -> str:
         if not self.embed_images:
@@ -86,6 +116,7 @@ class VisualDiffReport:
   <h2>{html.escape(str(r.get("name", "report")))}
     <span class="badge {badge_class}">{status.upper()}</span></h2>
   <div class="meta">diff={r.get("difference", "n/a")} method={html.escape(str(r.get("method", "")))}</div>
+    <div class="meta">risk={r.get("risk_level", "low")} ({r.get("risk_score", 0.0):.2f})</div>
   <div class="grid">
     <figure><figcaption>Source (PBIRS)</figcaption>
       {'<img src="' + html.escape(before) + '"/>' if before else '<div class="missing">missing</div>'}
@@ -122,8 +153,21 @@ class VisualDiffReport:
  <span style="color:#107c10">Pass: {summary["pass"]}</span>
  <span style="color:#a4262c">Fail: {summary["fail"]}</span>
  <span style="color:#605e5c">Error: {summary["error"]}</span>
+ <span style="color:#a4262c">High risk: {summary["high_risk_count"]}</span>
  <span>Pass rate: {summary["pass_rate"] * 100:.1f}%</span>
 </div>
+<section class="pair">
+    <h2>Top Offenders</h2>
+    <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th style="text-align:left">Name</th><th>Status</th><th>Diff</th><th>Risk</th></tr></thead>
+        <tbody>
+            {''.join(
+                    f"<tr><td>{html.escape(str(o['name']))}</td><td>{html.escape(str(o['status']))}</td><td>{o['difference']}</td><td>{o['risk_level']} ({o['risk_score']:.2f})</td></tr>"
+                    for o in summary.get('top_offenders', [])
+            ) or '<tr><td colspan="4">None</td></tr>'}
+        </tbody>
+    </table>
+</section>
 <pre style="display:none">{html.escape(json.dumps(summary))}</pre>
 {"".join(rows)}
 </body></html>"""

@@ -28,7 +28,7 @@
 |------|-----------|--------|
 | **File-Share Delivery** | No file-share delivery in PBI Online | ✅ IMPROVED (v1.3) — Power Automate flow stubs auto-generated |
 | **Data-Driven Subscriptions** | Requires direct DB access for query-based recipients | ✅ IMPROVED (v1.3) — conversion plans + CSV templates generated |
-| **Data-Driven Query Extraction** | PBIRS REST API does not expose subscription queries | ❌ API limitation — query details require ReportServer database access |
+| **Data-Driven Query Extraction** | PBIRS REST API does not expose subscription queries | ✅ IMPROVED (v6.2) — optional ReportServer DB bridge enriches conversion plans (`--allow-db-query-bridge`) |
 
 ## Permissions
 
@@ -54,7 +54,7 @@
 | **PBI REST API Import Size** | .pbix files > 1 GB require enhanced import API | ⚠️ Not yet implemented |
 | **Concurrent Imports** | PBI Online has throttling limits | ✅ IMPROVED (v1.1) — parallel downloads respect rate limits |
 | **Rate Limiting** | PBI REST API enforces rate limits | ✅ Handled — retry-after headers respected |
-| **PBIRS API Coverage** | ~90% of metadata available via REST API | ⚠️ Some security inheritance and data-driven sub queries require DB access |
+| **PBIRS API Coverage** | ~90% of metadata available via REST API | ✅ IMPROVED (v6.2) — optional DB bridges for data-driven queries and security inheritance (`--allow-db-query-bridge`, `--security-db-assist`) |
 
 ## Export
 

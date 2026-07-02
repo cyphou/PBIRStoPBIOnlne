@@ -183,6 +183,41 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
     # Extract permissions
     perm_extractor = PermissionExtractor(client)
     permissions = perm_extractor.extract_all(catalog)
+
+    # Optional DB-assisted security inheritance resolver (v6.2)
+    if getattr(args, "security_db_assist", False):
+        db_conn = getattr(args, "reportserver_db_conn", None) or os.getenv("REPORTSERVER_DB_CONN")
+        strategy = getattr(args, "security_conflict_strategy", "prefer-api")
+        if not db_conn:
+            logger.warning(
+                "Security DB assist requested but no connection string provided. "
+                "Set --reportserver-db-conn or REPORTSERVER_DB_CONN."
+            )
+        else:
+            from pbirs_export.security_inheritance_resolver import SecurityInheritanceResolver
+            resolver = SecurityInheritanceResolver(
+                connection_string=db_conn,
+                conflict_strategy=strategy,
+                logger_=logger,
+            )
+            resolved = resolver.resolve(
+                permissions.get("item_policies", []),
+                catalog.get("items", []),
+            )
+            permissions["item_policies"] = resolved.get("merged_item_policies", permissions.get("item_policies", []))
+            gap_report = resolved.get("gap_report", {})
+            with open(output_dir / "security_gap_report.json", "w", encoding="utf-8") as f:
+                json.dump(gap_report, f, indent=2)
+            logger.info(
+                "Security DB assist: %d items compared, %d diffs (strategy=%s)",
+                gap_report.get("total_items", 0),
+                gap_report.get("diff_items_count", 0),
+                strategy,
+            )
+            if strategy == "strict-fail-on-diff" and int(gap_report.get("diff_items_count", 0)) > 0:
+                logger.error("Security inheritance diffs detected under strict strategy")
+                return ExitCode.VALIDATION_ERROR
+
     with open(output_dir / "permissions.json", "w", encoding="utf-8") as f:
         json.dump(permissions, f, indent=2, default=str)
 
@@ -280,6 +315,32 @@ def _run_conversion(args: argparse.Namespace, logger: logging.Logger) -> int:
     if subs_path.exists():
         with open(subs_path, encoding="utf-8") as f:
             subscriptions = json.load(f)
+
+        # Optional data-driven query bridge from ReportServer DB (v6.2)
+        if getattr(args, "allow_db_query_bridge", False):
+            logger.warning(
+                "DB query bridge enabled by explicit consent (--allow-db-query-bridge). "
+                "Extracted artifacts will be redacted in logs/reports."
+            )
+            db_conn = getattr(args, "reportserver_db_conn", None) or os.getenv("REPORTSERVER_DB_CONN")
+            if not db_conn:
+                logger.warning(
+                    "DB query bridge requested but no connection string provided. "
+                    "Set --reportserver-db-conn or REPORTSERVER_DB_CONN."
+                )
+            else:
+                from pbi_import.reportserver_db_bridge import ReportServerDbBridge
+                bridge = ReportServerDbBridge(connection_string=db_conn, logger_=logger)
+                bridge_result = bridge.merge_into_subscriptions(subscriptions)
+                subscriptions = bridge_result["subscriptions"]
+                with open(output_dir / "db_query_bridge_report.json", "w", encoding="utf-8") as f:
+                    json.dump(bridge_result["report"], f, indent=2)
+                logger.info(
+                    "DB query bridge merged %d/%d data-driven subscriptions",
+                    bridge_result["report"].get("merged_count", 0),
+                    bridge_result["report"].get("data_driven_total", 0),
+                )
+
         pa_gen = PowerAutomateGenerator()
         pa_results = pa_gen.generate_flows(subscriptions)
         pa_gen.save_flows(pa_results, str(output_dir))
@@ -516,6 +577,12 @@ def _run_import(args: argparse.Namespace, logger: logging.Logger) -> int:
     # Gateway auto-create (Sprint K3) — create missing datasources on a gateway
     if getattr(args, "gateway_auto", False):
         from pbi_import.gateway_autocreate import GatewayAutoCreator
+        from pbi_import.connection_mapping_csv import (
+            build_online_inventory,
+            write_connection_endpoint_csv,
+            write_connection_mapping_csv,
+        )
+        from pbi_import.gateway_mapper import GatewayMapper
         gw_id = getattr(args, "gateway_id", None)
         if not gw_id:
             logger.error("--gateway-auto requires --gateway-id")
@@ -524,16 +591,124 @@ def _run_import(args: argparse.Namespace, logger: logging.Logger) -> int:
         if ds_path.is_file():
             datasources = _load_json(ds_path) or []
             if isinstance(datasources, dict):
-                datasources = datasources.get("datasources") or list(datasources.values())
+                if isinstance(datasources.get("shared_datasources"), list):
+                    datasources = datasources.get("shared_datasources", [])
+                elif isinstance(datasources.get("datasources"), list):
+                    datasources = datasources.get("datasources", [])
+                else:
+                    datasources = []
+            if not isinstance(datasources, list):
+                datasources = []
             creator = GatewayAutoCreator(pbi_client, default_gateway_id=gw_id)
+            plan = creator.plan(datasources, gateway_id=gw_id)
             res = creator.execute(datasources, gateway_id=gw_id, dry_run=dry_run)
             mapping_path = input_dir / "gateway_mapping.auto.json"
             creator.write_mapping(res, mapping_path, gateway_id=gw_id)
+
+            # Auto-bind datasets/reports using the generated mapping so the
+            # connection creation path is complete in one run.
+            bind_results = GatewayMapper(pbi_client, str(mapping_path)).bind_datasets(
+                primary_ws,
+                publish_results["reports"]["success"] + publish_results["datasets"]["success"],
+                dry_run=dry_run,
+            )
+
+            connection_report = {
+                "gateway_id": gw_id,
+                "planned": len(plan),
+                "created": len(res.get("created", [])),
+                "skipped": len(res.get("skipped", [])),
+                "failed": len(res.get("failed", [])),
+                "bound": len(bind_results.get("bound", [])),
+                "bind_failed": len(bind_results.get("failed", [])),
+            }
+            (input_dir / "gateway_connection_report.json").write_text(
+                json.dumps({
+                    "summary": connection_report,
+                    "create": res,
+                    "bind": bind_results,
+                }, indent=2),
+                encoding="utf-8",
+            )
+
+            online_gateways, online_datasources = build_online_inventory(pbi_client, gateway_id=gw_id)
+            csv_path = Path(getattr(args, "connection_map_csv", "") or (input_dir / "connection_mapping.csv"))
+            csv_summary = write_connection_mapping_csv(
+                datasources={"shared_datasources": datasources, "embedded_datasources": []},
+                output_path=csv_path,
+                mapping=_load_json(mapping_path, default={}) or {},
+                online_gateways=online_gateways,
+                online_datasources_by_gateway=online_datasources,
+            )
+            endpoint_csv_path = Path(
+                getattr(args, "connection_map_endpoint_csv", "")
+                or (input_dir / "connection_mapping_by_endpoint.csv")
+            )
+            endpoint_summary = write_connection_endpoint_csv(
+                datasources={"shared_datasources": datasources, "embedded_datasources": []},
+                output_path=endpoint_csv_path,
+                mapping=_load_json(mapping_path, default={}) or {},
+                online_gateways=online_gateways,
+                online_datasources_by_gateway=online_datasources,
+            )
+
             logger.info("Gateway auto-create: created=%d skipped=%d failed=%d (mapping: %s)",
                         len(res["created"]), len(res["skipped"]), len(res["failed"]),
                         mapping_path)
+            logger.info("Gateway auto-bind: bound=%d failed=%d (report: %s)",
+                        len(bind_results.get("bound", [])), len(bind_results.get("failed", [])),
+                        input_dir / "gateway_connection_report.json")
+            logger.info("Connection mapping CSV: total=%d mapped=%d suggested=%d unmapped=%d (%s)",
+                        csv_summary["total"], csv_summary["mapped"], csv_summary["suggested"],
+                        csv_summary["unmapped"], csv_path)
+            logger.info("Connection endpoint CSV: endpoints=%d occurrences=%d (%s)",
+                        endpoint_summary["total_endpoints"], endpoint_summary["total_occurrences"],
+                        endpoint_csv_path)
         else:
             logger.warning("--gateway-auto: no datasources.json at %s", ds_path)
+
+    # Optional standalone connection mapping CSV export.
+    if getattr(args, "connection_map_csv", None) and not getattr(args, "gateway_auto", False):
+        from pbi_import.connection_mapping_csv import (
+            build_online_inventory,
+            write_connection_endpoint_csv,
+            write_connection_mapping_csv,
+        )
+
+        ds_path = input_dir / "datasources.json"
+        if ds_path.is_file():
+            datasources = _load_json(ds_path) or {}
+            mapping = _load_json(getattr(args, "map_gateway", ""), default={}) if getattr(args, "map_gateway", None) else {}
+            online_gateways, online_datasources = build_online_inventory(
+                pbi_client,
+                gateway_id=getattr(args, "gateway_id", None),
+            )
+            csv_summary = write_connection_mapping_csv(
+                datasources=datasources if isinstance(datasources, dict) else {"shared_datasources": [], "embedded_datasources": []},
+                output_path=Path(getattr(args, "connection_map_csv")),
+                mapping=mapping or {},
+                online_gateways=online_gateways,
+                online_datasources_by_gateway=online_datasources,
+            )
+            endpoint_csv_path = Path(
+                getattr(args, "connection_map_endpoint_csv", "")
+                or (Path(getattr(args, "connection_map_csv")).with_name("connection_mapping_by_endpoint.csv"))
+            )
+            endpoint_summary = write_connection_endpoint_csv(
+                datasources=datasources if isinstance(datasources, dict) else {"shared_datasources": [], "embedded_datasources": []},
+                output_path=endpoint_csv_path,
+                mapping=mapping or {},
+                online_gateways=online_gateways,
+                online_datasources_by_gateway=online_datasources,
+            )
+            logger.info("Connection mapping CSV: total=%d mapped=%d suggested=%d unmapped=%d (%s)",
+                        csv_summary["total"], csv_summary["mapped"], csv_summary["suggested"],
+                        csv_summary["unmapped"], getattr(args, "connection_map_csv"))
+            logger.info("Connection endpoint CSV: endpoints=%d occurrences=%d (%s)",
+                        endpoint_summary["total_endpoints"], endpoint_summary["total_occurrences"],
+                        endpoint_csv_path)
+        else:
+            logger.warning("--connection-map-csv: no datasources.json at %s", ds_path)
 
     # AD → AAD bridge (Sprint K2) — emit CSV manifest of principals
     if getattr(args, "ad_bridge", False):
@@ -914,6 +1089,24 @@ def _run_benchmark(args: argparse.Namespace, logger: logging.Logger) -> int:
     return ExitCode.SUCCESS
 
 
+def _run_capability_report(args: argparse.Namespace, logger: logging.Logger) -> int:
+    """Print and optionally persist environment capability report, then exit."""
+    from pbi_import.capability_report import generate_capability_report, render_capability_report
+
+    report = generate_capability_report(args)
+    print(render_capability_report(report))
+
+    out_path = getattr(args, "capability_report_out", None)
+    if out_path:
+        p = Path(out_path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2)
+        logger.info("Capability report written to %s", p)
+
+    return ExitCode.SUCCESS
+
+
 def _load_json(path: Path, default: Any = None) -> Any:
     """Load JSON from ``path``, returning ``default`` (or ``{}``) if missing."""
     if not path.exists():
@@ -1118,6 +1311,10 @@ Examples:
     behavior.add_argument("--resume", action="store_true", help="Skip phases already marked complete in pipeline.checkpoint.json")
     behavior.add_argument("--reset-checkpoint", action="store_true", help="Clear pipeline checkpoint before starting")
     behavior.add_argument("--metrics-out", help="Write Prometheus metrics to this path after run")
+    behavior.add_argument("--capability-report", action="store_true",
+                          help="Print environment capability report and exit")
+    behavior.add_argument("--capability-report-out",
+                          help="Write capability report JSON to this path")
 
     # Parity (Sprint H)
     parity = p.add_argument_group("Parity (PBIRS feature bridge)")
@@ -1179,8 +1376,24 @@ Examples:
                       help="Auto-create missing gateway datasources from shared .rds connections")
     gaps.add_argument("--gateway-id",
                       help="Target gateway id for --gateway-auto")
+    gaps.add_argument("--connection-map-csv",
+                      help="Write PBIRS→PBI Online connection mapping CSV (default with --gateway-auto: <input>/connection_mapping.csv)")
+    gaps.add_argument("--connection-map-endpoint-csv",
+                      help="Write grouped PBIRS→PBI Online endpoint mapping CSV")
     gaps.add_argument("--dax-autofix", action="store_true",
                       help="Apply safe DAX rewrites and write a diff report during conversion")
+    gaps.add_argument("--allow-db-query-bridge", action="store_true",
+                      help="Opt-in: allow ReportServer DB query bridge for data-driven subscriptions")
+    gaps.add_argument("--reportserver-db-conn",
+                      help="ReportServer DB connection string (or env: REPORTSERVER_DB_CONN)")
+    gaps.add_argument("--security-db-assist", action="store_true",
+                      help="Opt-in: use ReportServer DB to resolve security inheritance edge cases")
+    gaps.add_argument(
+        "--security-conflict-strategy",
+        choices=["prefer-api", "prefer-db", "strict-fail-on-diff"],
+        default="prefer-api",
+        help="Conflict strategy when API-visible permissions differ from DB-resolved effective permissions",
+    )
 
     return p
 
@@ -1223,6 +1436,9 @@ def main() -> int:
             return ExitCode.CONFIG_ERROR
         logger.info("Preflight OK")
         return ExitCode.SUCCESS
+
+    if getattr(args, "capability_report", False):
+        return _finalise_early_exit(args, logger, _run_capability_report(args, logger))
 
     if getattr(args, "sync_daemon", False):
         return _finalise_early_exit(args, logger, _run_sync_daemon(args, logger))

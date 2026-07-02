@@ -26,14 +26,23 @@ class MigrationValidator:
         results = {
             "report_count": self._validate_report_count(catalog, workspace_id),
             "datasource_binding": self._validate_datasources(workspace_id),
+            "binding_parity": self._validate_binding_parity(workspace_id, converted_dir),
             "refresh_status": self._validate_refresh(workspace_id),
             "permissions": self._validate_permissions(workspace_id),
+            "custom_visuals": self._validate_custom_visuals(catalog, workspace_id),
             "overall": "PASS",
             "issues": [],
         }
 
         # Determine overall status
-        for key in ("report_count", "datasource_binding", "refresh_status", "permissions"):
+        for key in (
+            "report_count",
+            "datasource_binding",
+            "binding_parity",
+            "refresh_status",
+            "permissions",
+            "custom_visuals",
+        ):
             check = results[key]
             if check.get("status") == "FAIL":
                 results["overall"] = "FAIL"
@@ -122,6 +131,157 @@ class MigrationValidator:
             return {"status": "WARN", "message": "Only 1 user in workspace — review permission mapping"}
         return {"status": "PASS", "message": f"{len(users)} users configured"}
 
+    def _validate_binding_parity(self, workspace_id: str, converted_dir: str) -> dict:
+        """Validate target datasource bindings against source connection expectations."""
+        ds_path = Path(converted_dir) / "datasources.json"
+        if not ds_path.exists():
+            return {
+                "status": "PASS",
+                "message": "No datasource baseline file found; parity check skipped",
+            }
+
+        try:
+            payload = json.loads(ds_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            return {"status": "WARN", "message": f"Could not parse datasource baseline: {e}"}
+
+        expected_summary = payload.get("connection_summary", {}) if isinstance(payload, dict) else {}
+        if not isinstance(expected_summary, dict):
+            expected_summary = {}
+        expected_count = sum(int(v) for v in expected_summary.values() if isinstance(v, int))
+
+        if expected_count <= 0:
+            return {
+                "status": "PASS",
+                "message": "No source datasource expectations found in baseline",
+            }
+
+        try:
+            datasets = self.client.list_datasets(workspace_id)
+        except Exception as e:
+            return {"status": "FAIL", "message": f"Could not list datasets for parity check: {e}"}
+
+        bound_count = 0
+        for ds in datasets:
+            ds_id = ds.get("id", "")
+            if not ds_id:
+                continue
+            try:
+                target_sources = self.client.get_dataset_datasources(ds_id)
+            except Exception:
+                continue
+            if not isinstance(target_sources, list):
+                continue
+            for src in target_sources:
+                if src.get("gatewayId") or src.get("datasourceId"):
+                    bound_count += 1
+
+        if bound_count < expected_count:
+            return {
+                "status": "WARN",
+                "message": (
+                    f"Binding parity mismatch: source expects ~{expected_count} datasource refs, "
+                    f"target has {bound_count} bound refs. "
+                    "Review gateway mapping and run --map-gateway / --gateway-auto."
+                ),
+            }
+
+        return {
+            "status": "PASS",
+            "message": f"Binding parity OK: {bound_count}/{expected_count} refs bound",
+        }
+
+    def _validate_custom_visuals(self, catalog: dict, workspace_id: str) -> dict:
+        """Validate custom visuals used by source content are available in target tenant/workspace."""
+        required = self._collect_required_custom_visuals(catalog)
+        if not required:
+            return {"status": "PASS", "message": "No custom visuals detected in source metadata"}
+
+        available = self._list_available_custom_visuals(workspace_id)
+        if not available:
+            return {
+                "status": "WARN",
+                "message": (
+                    f"Detected {len(required)} required custom visual(s), but target catalog could not be read. "
+                    "Ensure tenant/org visuals are published and accessible."
+                ),
+            }
+
+        missing = sorted(required - available)
+        if missing:
+            preview = ", ".join(missing[:5])
+            suffix = "..." if len(missing) > 5 else ""
+            return {
+                "status": "WARN",
+                "message": (
+                    f"Missing {len(missing)} custom visual(s): {preview}{suffix}. "
+                    "Install/publish visuals in AppSource or Org visuals before go-live."
+                ),
+            }
+
+        return {
+            "status": "PASS",
+            "message": f"All required custom visuals available ({len(required)})",
+        }
+
+    @staticmethod
+    def _collect_required_custom_visuals(catalog: dict) -> set[str]:
+        required: set[str] = set()
+        for item in catalog.get("items", []):
+            visuals = item.get("custom_visuals", [])
+            if not isinstance(visuals, list):
+                continue
+            for v in visuals:
+                if isinstance(v, str) and v.strip():
+                    required.add(v.strip())
+                elif isinstance(v, dict):
+                    for key in ("name", "id", "visualName", "visualId"):
+                        val = v.get(key)
+                        if isinstance(val, str) and val.strip():
+                            required.add(val.strip())
+                            break
+        return required
+
+    def _list_available_custom_visuals(self, workspace_id: str) -> set[str]:
+        candidates = (
+            ("list_custom_visuals", (workspace_id,)),
+            ("list_custom_visuals", tuple()),
+            ("list_org_visuals", tuple()),
+            ("get_available_custom_visuals", (workspace_id,)),
+            ("get_available_custom_visuals", tuple()),
+        )
+
+        for method_name, args in candidates:
+            method = getattr(self.client, method_name, None)
+            if method is None:
+                continue
+            try:
+                payload = method(*args)
+            except Exception:
+                continue
+            names = self._normalise_visual_name_payload(payload)
+            if names:
+                return names
+        return set()
+
+    @staticmethod
+    def _normalise_visual_name_payload(payload: Any) -> set[str]:
+        visuals = payload.get("value") if isinstance(payload, dict) else payload
+        if not isinstance(visuals, list):
+            return set()
+
+        names: set[str] = set()
+        for v in visuals:
+            if isinstance(v, str) and v.strip():
+                names.add(v.strip())
+            elif isinstance(v, dict):
+                for key in ("name", "id", "visualName", "displayName"):
+                    val = v.get(key)
+                    if isinstance(val, str) and val.strip():
+                        names.add(val.strip())
+                        break
+        return names
+
     # ------------------------------------------------------------------
     # CLI-friendly helpers
     # ------------------------------------------------------------------
@@ -136,7 +296,14 @@ class MigrationValidator:
         catalog = self._load_catalog(Path(input_dir))
         result = self.validate(catalog, workspace_id, input_dir)
 
-        checks = ("report_count", "datasource_binding", "refresh_status", "permissions")
+        checks = (
+            "report_count",
+            "datasource_binding",
+            "binding_parity",
+            "refresh_status",
+            "permissions",
+            "custom_visuals",
+        )
         passed = sum(1 for k in checks if result.get(k, {}).get("status") == "PASS")
         failed = sum(1 for k in checks if result.get(k, {}).get("status") == "FAIL")
         result["passed"] = passed
@@ -159,7 +326,14 @@ class MigrationValidator:
 
     def generate_html_report(self, result: dict, output_path: str) -> None:
         """Render the validation result as a standalone HTML page."""
-        checks = ("report_count", "datasource_binding", "refresh_status", "permissions")
+        checks = (
+            "report_count",
+            "datasource_binding",
+            "binding_parity",
+            "refresh_status",
+            "permissions",
+            "custom_visuals",
+        )
         rows = []
         for key in checks:
             check = result.get(key, {})

@@ -280,10 +280,24 @@ flowchart LR
 | Subscriptions (email) | PBI Subscriptions | Direct migration |
 | Subscriptions (file share) | Power Automate flows | Auto-generated stubs |
 | Subscriptions (data-driven) | Power Automate flows | Stubs with query hints |
-| Linked Reports | Paginated Reports | Flatten hierarchy |
-| Permissions (SSRS roles) | Workspace Roles + RLS | AD → Azure AD mapping |
-| Mobile Reports | N/A (deprecated) | Flagged in assessment |
-| Folders | Workspaces | Flat mapping |
+| Linked Reports | Paginated/Bookmark strategy | Configurable (`--linked-as`) |
+| Permissions (SSRS roles) | Workspace Roles + RLS | AD bridge + optional AAD provisioning |
+| Mobile Reports | Scaffold JSON for rebuild | Best-effort (`--migrate-mobile`) |
+| Folders | Fabric workspace folders | Preserve hierarchy (`--preserve-folders`) |
+
+---
+
+## ⚠️ Current Open Limitations
+
+Most historical gaps now have mitigation paths. Remaining high-priority limitations are:
+
+- **Large PBIX import (> 1 GB):** enhanced import path not fully implemented yet
+- **Data-driven subscription query extraction:** PBIRS REST API does not expose query text; DB bridge required for full fidelity
+- **PBIRS metadata edge cases:** some security inheritance details require DB-assisted resolution
+
+See:
+- [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)
+- [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ---
 
@@ -352,7 +366,7 @@ PBIReporttoPBIOnline/
 │       ├── pbi_client.py           #     PBI REST API wrapper
 │       ├── fabric_client.py        #     Fabric REST API wrapper
 │       └── config.py               #     Environment configuration
-├── tests/                          # 152 tests across 20 files
+├── tests/                          # 513 tests across 24 files
 ├── scripts/                        # Utility scripts
 ├── docs/                           # Full documentation suite
 └── examples/                       # Example configurations

@@ -118,3 +118,55 @@
 - [x] **Gateway auto-create** — `GatewayAutoCreator` parses `.rds` files, plans + creates missing gateway datasources, emits `gateway_mapping.auto.json` (`--gateway-auto --gateway-id`)
 - [x] **DAX auto-fixer** — rule-based rewriter (`IFERROR→DIVIDE`, `COUNTROWS(DISTINCT)→DISTINCTCOUNT`, `IF(HASONEVALUE)→SELECTEDVALUE`, `CONTAINS→IN VALUES`, `EARLIER→TODO`) with per-rule reporting (`--dax-autofix`)
 
+---
+
+## 🎯 v6.2 — Limitation-Driven Stabilization (Next)
+
+Focus: close unresolved items from `docs/KNOWN_LIMITATIONS.md` before adding net-new capabilities.
+
+### 1) Large PBIX import path (> 1 GB)
+- [x] Implement enhanced import flow for large `.pbix` files (chunked/resumable upload path where required by API)
+- [x] Add automatic strategy selection (standard import vs enhanced import)
+- [x] Add end-to-end tests for 3 file bands: `<500MB`, `500MB-1GB`, `>1GB`
+- [x] Emit explicit diagnostics and remediation hints when tenant/workspace settings block large import
+
+### 2) Data-driven subscription query bridge
+- [x] Add optional ReportServer DB connector module for extracting data-driven subscription query text
+- [x] Merge DB-extracted query metadata into conversion plans and generated CSV templates
+- [x] Add secure secret handling + redaction for logged query artifacts
+- [x] Add `--allow-db-query-bridge` feature flag with clear consent prompt in CLI output
+
+### 3) Security inheritance depth
+- [x] Add optional DB-assisted inheritance resolver for PBIRS item security edge cases
+- [x] Emit `security_gap_report.json` listing API-visible vs DB-resolved effective permissions
+- [x] Add conflict strategy flags (`prefer-api`, `prefer-db`, `strict-fail-on-diff`)
+
+### 4) Validation hardening for semantic parity
+- [x] Add custom visual availability precheck against target tenant/app catalog
+- [x] Add post-import dataset binding parity checks with actionable fix suggestions
+- [x] Expand visual diff report with "high-risk mismatch" scoring and top offenders summary
+
+## 🎯 v6.3 — Default-On Reliability
+
+Focus: make limitation workarounds safe and operational by default.
+
+- [ ] Promote large-file and DB bridge features from opt-in to default-on when prerequisites are met
+- [x] Add compatibility matrix command (`--capability-report`) to print what migration features are active for the current environment
+- [ ] Add recovery playbooks in generated artifacts for partial-failure scenarios
+- [ ] Add stress tests for 10k+ item catalogs with mixed large-file import workloads
+
+### Gateway and connection hardening
+
+- [x] Complete gateway auto-create flow by auto-binding published datasets/reports from generated mapping
+- [x] Emit unified gateway connection report artifact (`gateway_connection_report.json`) with create/bind summary and details
+- [x] Emit grouped endpoint mapping CSV (`connection_mapping_by_endpoint.csv`) for bulk mapping by server/database
+
+## 🎯 v6.4 — Closure Criteria
+
+Release closes when all are true:
+
+- [ ] `KNOWN_LIMITATIONS.md` has no remaining ❌ entries for core migration path
+- [ ] `KNOWN_LIMITATIONS.md` has no ⚠️ entries without an automated mitigation path
+- [ ] Test suite includes dedicated regression coverage for each formerly open limitation
+- [ ] README "Capabilities" and limitations status are fully consistent
+

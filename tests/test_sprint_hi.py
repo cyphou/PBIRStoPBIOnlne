@@ -395,6 +395,28 @@ class TestVisualDiffReport:
         )
         assert summary["error"] == 1
 
+    def test_summary_includes_high_risk_and_top_offenders(self, tmp_path):
+        before_ok = tmp_path / "ok_before.png"
+        after_ok = tmp_path / "ok_after.png"
+        before_ok.write_bytes(b"\x89PNG\r\n\x1a\nSAME")
+        after_ok.write_bytes(b"\x89PNG\r\n\x1a\nSAME")
+
+        out = tmp_path / "report.html"
+        summary = VisualDiffReport().generate(
+            [
+                {"name": "Missing", "before": str(tmp_path / "none.png"), "after": str(tmp_path / "none.png")},
+                {"name": "Same", "before": str(before_ok), "after": str(after_ok)},
+            ],
+            out,
+        )
+
+        assert "high_risk_count" in summary
+        assert summary["high_risk_count"] >= 1
+        assert "top_offenders" in summary
+        assert len(summary["top_offenders"]) >= 1
+        html = out.read_text(encoding="utf-8")
+        assert "Top Offenders" in html
+
 
 # ---------------------------------------------------------------------------
 # CLI integration — new flags

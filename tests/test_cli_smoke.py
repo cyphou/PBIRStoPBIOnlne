@@ -143,3 +143,100 @@ class TestEventLog:
         assert ("assess", "phase_start") in events
         assert ("assess", "phase_end") in events
         assert ("pipeline", "end") in events
+
+
+class TestCapabilityReport:
+    def test_capability_report_early_exit(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
+        out_json = tmp_path / "capabilities.json"
+        rc = _run_cli(
+            ["--capability-report", "--capability-report-out", str(out_json)],
+            monkeypatch, fake_pbirs_client, fake_pbi_client,
+        )
+        assert rc == migrate.ExitCode.SUCCESS
+        assert out_json.exists()
+
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        assert "capabilities" in payload
+        assert any(c.get("id") == "feature.capability_report" for c in payload["capabilities"])
+
+
+class TestSecurityDbAssist:
+    def test_export_strict_fail_on_security_diff(
+        self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client
+    ):
+        fake_result = {
+            "merged_item_policies": [],
+            "gap_report": {
+                "enabled": True,
+                "conflict_strategy": "strict-fail-on-diff",
+                "total_items": 1,
+                "diff_items_count": 1,
+                "items": [{"item_path": "/Sales", "conflict": True}],
+            },
+        }
+
+        with patch(
+            "pbirs_export.security_inheritance_resolver.SecurityInheritanceResolver.resolve",
+            return_value=fake_result,
+        ):
+            rc = _run_cli(
+                [
+                    "--server", "http://x", "--export", "--output-dir", str(tmp_path),
+                    "--security-db-assist", "--security-conflict-strategy", "strict-fail-on-diff",
+                    "--reportserver-db-conn", "Server=.;Database=ReportServer;Trusted_Connection=yes;",
+                ],
+                monkeypatch,
+                fake_pbirs_client,
+                fake_pbi_client,
+            )
+        assert rc == migrate.ExitCode.VALIDATION_ERROR
+        assert (tmp_path / "security_gap_report.json").exists()
+
+
+class TestGatewayAutoConnectionFlow:
+    def test_gateway_auto_creates_and_binds(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
+        converted = tmp_path / "converted"
+        (converted / "powerbi").mkdir(parents=True)
+        (converted / "powerbi" / "Report.pbix").write_bytes(b"PK\x03\x04")
+        (converted / "datasets").mkdir(parents=True)
+        (converted / "paginated").mkdir(parents=True)
+
+        # Export-style datasource payload with shared datasources
+        (converted / "datasources.json").write_text(
+            json.dumps(
+                {
+                    "shared_datasources": [
+                        {
+                            "Name": "Report",
+                            "Extension": "SQL",
+                            "ConnectString": "Server=tcp:db.local;Database=DW;",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        fake_pbi_client.list_gateway_datasources.return_value = []
+        fake_pbi_client.create_gateway_datasource.return_value = {"id": "ds-created-1"}
+
+        rc = _run_cli(
+            [
+                "--import",
+                "--input-dir", str(converted),
+                "--workspace-id", "ws-1",
+                "--gateway-auto", "--gateway-id", "gw-1",
+                "--no-migrate-permissions", "--no-migrate-subscriptions", "--no-migrate-schedules",
+            ],
+            monkeypatch,
+            fake_pbirs_client,
+            fake_pbi_client,
+        )
+
+        assert rc in (migrate.ExitCode.SUCCESS, migrate.ExitCode.PARTIAL)
+        assert (converted / "gateway_mapping.auto.json").exists()
+        assert (converted / "gateway_connection_report.json").exists()
+        assert (converted / "connection_mapping.csv").exists()
+        assert (converted / "connection_mapping_by_endpoint.csv").exists()
+        fake_pbi_client.create_gateway_datasource.assert_called_once()
+        assert fake_pbi_client.bind_to_gateway.called
