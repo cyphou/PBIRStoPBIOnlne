@@ -215,6 +215,53 @@ class TestCapabilityReport:
         assert caps["limitation.security_inheritance_db_bridge"]["state"] == "partial"
 
 
+class TestSemanticMergeAssessment:
+    def test_semantic_merge_assessment_generates_json_and_html(
+        self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client
+    ):
+        catalog = {
+            "items": [
+                {"Name": "Sales Overview", "Type": "PowerBIReport", "DataSetReference": "SharedSales"},
+                {"Name": "Sales Deep Dive", "Type": "PowerBIReport", "DataSetReference": "SharedSales"},
+            ]
+        }
+        (tmp_path / "inventory.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+        rc = _run_cli(
+            ["--assess-semantic-merge", "--output-dir", str(tmp_path)],
+            monkeypatch,
+            fake_pbirs_client,
+            fake_pbi_client,
+        )
+        assert rc == migrate.ExitCode.SUCCESS
+        assert (tmp_path / "semantic_merge_assessment.json").exists()
+        assert (tmp_path / "semantic_merge_assessment.html").exists()
+
+    def test_semantic_merge_assessment_marks_ready_for_shared_model_groups(
+        self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client
+    ):
+        catalog = {
+            "items": [
+                {"Name": "Finance 1", "Type": "PowerBIReport", "DataSetReference": "FinanceModel"},
+                {"Name": "Finance 2", "Type": "PowerBIReport", "DataSetReference": "FinanceModel"},
+            ]
+        }
+        (tmp_path / "inventory.json").write_text(json.dumps(catalog), encoding="utf-8")
+
+        rc = _run_cli(
+            ["--assess-semantic-merge", "--output-dir", str(tmp_path)],
+            monkeypatch,
+            fake_pbirs_client,
+            fake_pbi_client,
+        )
+        assert rc == migrate.ExitCode.SUCCESS
+
+        payload = json.loads((tmp_path / "semantic_merge_assessment.json").read_text(encoding="utf-8"))
+        summary = payload.get("summary", {})
+        assert summary.get("semantic_merge_groups", 0) >= 1
+        assert summary.get("status") in {"READY", "CONDITIONAL"}
+
+
 class TestSecurityDbAssist:
     def test_export_strict_fail_on_security_diff(
         self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client

@@ -95,6 +95,9 @@ python migrate.py --import --input-dir artifacts/converted --workspace-id <ID> -
 
 # Verbose logging to file
 python migrate.py --server URL --full --workspace-id <ID> --verbose --log-file migration.log
+
+# Semantic model merge assessment (JSON + dedicated HTML)
+python migrate.py --assess-semantic-merge --output-dir artifacts
 ```
 
 ---

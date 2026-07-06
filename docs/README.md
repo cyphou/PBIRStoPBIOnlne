@@ -46,6 +46,16 @@ python scripts/csv_to_pbi_online_import.py \
 python migrate.py --capability-report --capability-report-out artifacts/capability_report.json
 ```
 
+### Semantic model merge assessment
+
+```bash
+python migrate.py --assess-semantic-merge --output-dir artifacts
+```
+
+Outputs:
+- artifacts/semantic_merge_assessment.json
+- artifacts/semantic_merge_assessment.html
+
 ## Project Structure
 
 | Module | Purpose |

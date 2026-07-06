@@ -1138,6 +1138,69 @@ def _run_capability_report(args: argparse.Namespace, logger: logging.Logger) -> 
     return ExitCode.SUCCESS
 
 
+def _run_semantic_merge_assessment(args: argparse.Namespace, logger: logging.Logger) -> int:
+    """Assess semantic-model merge feasibility and emit JSON + HTML reports."""
+    from pbi_import.semantic_merge_assessment import SemanticMergeAssessment
+
+    root = Path(args.output_dir) if getattr(args, "output_dir", None) else Path("artifacts")
+    source_root = Path(args.input_dir) if getattr(args, "input_dir", None) else root
+
+    candidates = [
+        source_root / "export_manifest.json",
+        source_root / "inventory.json",
+        root / "export" / "export_manifest.json",
+        root / "export_manifest.json",
+        root / "inventory.json",
+    ]
+
+    catalog: dict[str, Any] | None = None
+    loaded_from: Path | None = None
+    for cand in candidates:
+        if not cand.is_file():
+            continue
+        try:
+            payload = json.loads(cand.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        raw = payload.get("catalog", payload) if isinstance(payload, dict) else {}
+        if isinstance(raw, dict) and isinstance(raw.get("items"), list):
+            catalog = raw
+            loaded_from = cand
+            break
+
+    if not catalog:
+        logger.error(
+            "No catalog found for semantic merge assessment. "
+            "Run --assess or --export first, or provide --input-dir with inventory/export_manifest"
+        )
+        return ExitCode.CONFIG_ERROR
+
+    logger.info("Semantic merge assessment source: %s", loaded_from)
+
+    assessor = SemanticMergeAssessment()
+    report = assessor.assess(catalog, capacity_id=getattr(args, "capacity_id", None))
+
+    root.mkdir(parents=True, exist_ok=True)
+    json_out = root / "semantic_merge_assessment.json"
+    html_out = root / "semantic_merge_assessment.html"
+
+    json_out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    assessor.generate_html_report(report, html_out)
+
+    summary = report.get("summary", {})
+    logger.info(
+        "Semantic merge assessment: status=%s score=%s groups=%s composite=%s",
+        summary.get("status", "NOT_RECOMMENDED"),
+        summary.get("score", 0),
+        summary.get("semantic_merge_groups", 0),
+        summary.get("composite_candidates", 0),
+    )
+    logger.info("Semantic merge assessment JSON: %s", json_out)
+    logger.info("Semantic merge assessment HTML: %s", html_out)
+
+    return ExitCode.SUCCESS
+
+
 def _load_json(path: Path, default: Any = None) -> Any:
     """Load JSON from ``path``, returning ``default`` (or ``{}``) if missing."""
     if not path.exists():
@@ -1304,6 +1367,11 @@ Examples:
     phases.add_argument("--validate", action="store_true", help="Validate deployed content")
     phases.add_argument("--full", action="store_true", help="Run all phases")
     phases.add_argument("--preflight", action="store_true", help="Run connectivity & config checks only (no writes)")
+    phases.add_argument(
+        "--assess-semantic-merge",
+        action="store_true",
+        help="Assess semantic-model merge feasibility and generate semantic_merge_assessment.html",
+    )
 
     # Output
     output = p.add_argument_group("Output")
@@ -1470,6 +1538,9 @@ def main() -> int:
 
     if getattr(args, "capability_report", False):
         return _finalise_early_exit(args, logger, _run_capability_report(args, logger))
+
+    if getattr(args, "assess_semantic_merge", False):
+        return _finalise_early_exit(args, logger, _run_semantic_merge_assessment(args, logger))
 
     if getattr(args, "sync_daemon", False):
         return _finalise_early_exit(args, logger, _run_sync_daemon(args, logger))
