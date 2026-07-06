@@ -186,6 +186,34 @@ class TestCapabilityReport:
         assert "tool.powerbi_desktop_rs.installed" in ids
         assert "tool.powerbi_desktop_rs.authoring_session" in ids
 
+    def test_capability_report_marks_large_pbix_path_ready(self, tmp_path, monkeypatch,
+                                                            fake_pbirs_client, fake_pbi_client):
+        out_json = tmp_path / "capabilities.json"
+        rc = _run_cli(
+            ["--capability-report", "--capability-report-out", str(out_json)],
+            monkeypatch, fake_pbirs_client, fake_pbi_client,
+        )
+        assert rc == migrate.ExitCode.SUCCESS
+
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        caps = {c.get("id"): c for c in payload["capabilities"]}
+        assert caps["limitation.large_pbix_over_1gb"]["state"] == "ready"
+
+    def test_capability_report_marks_db_bridges_partial_without_connection(self, tmp_path, monkeypatch,
+                                                                            fake_pbirs_client, fake_pbi_client):
+        monkeypatch.delenv("REPORTSERVER_DB_CONN", raising=False)
+        out_json = tmp_path / "capabilities.json"
+        rc = _run_cli(
+            ["--capability-report", "--capability-report-out", str(out_json)],
+            monkeypatch, fake_pbirs_client, fake_pbi_client,
+        )
+        assert rc == migrate.ExitCode.SUCCESS
+
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        caps = {c.get("id"): c for c in payload["capabilities"]}
+        assert caps["limitation.data_driven_query_bridge"]["state"] == "partial"
+        assert caps["limitation.security_inheritance_db_bridge"]["state"] == "partial"
+
 
 class TestSecurityDbAssist:
     def test_export_strict_fail_on_security_diff(

@@ -16,6 +16,15 @@ def _has_module(name: str) -> bool:
     return importlib.util.find_spec(name) is not None
 
 
+def _has_attr(module_name: str, attr: str) -> bool:
+    """Return True when a module exists and exposes a given attribute."""
+    try:
+        module = importlib.import_module(module_name)
+    except Exception:
+        return False
+    return hasattr(module, attr)
+
+
 def _entry(cap_id: str, state: str, detail: str) -> dict[str, str]:
     """Build one capability row."""
     return {"id": cap_id, "state": state, "detail": detail}
@@ -113,6 +122,36 @@ def generate_capability_report(args: Any) -> dict[str, Any]:
         auth_state = "partial"
         auth_detail = "No optional import/deploy auth dependencies detected"
 
+    has_large_file_impl = (
+        _has_module("pbi_import.large_file_handler")
+        and _has_attr("pbi_import.report_publisher", "ReportPublisher")
+        and _has_attr("pbi_import.deploy.pbi_client", "PBIClient")
+    )
+
+    db_conn = getattr(args, "reportserver_db_conn", None) or os.getenv("REPORTSERVER_DB_CONN")
+    has_query_bridge_impl = _has_module("pbi_import.reportserver_db_bridge")
+    has_security_bridge_impl = _has_module("pbirs_export.security_inheritance_resolver")
+
+    if has_query_bridge_impl and db_conn:
+        query_bridge_state = "ready"
+        query_bridge_detail = "DB-assisted query bridge implemented and connection string is configured"
+    elif has_query_bridge_impl:
+        query_bridge_state = "partial"
+        query_bridge_detail = "DB-assisted query bridge implemented; set --reportserver-db-conn (or REPORTSERVER_DB_CONN) to enable"
+    else:
+        query_bridge_state = "planned"
+        query_bridge_detail = "PBIRS REST does not expose query text; DB-assisted bridge is still pending"
+
+    if has_security_bridge_impl and db_conn:
+        security_bridge_state = "ready"
+        security_bridge_detail = "DB-assisted security inheritance resolver implemented and connection string is configured"
+    elif has_security_bridge_impl:
+        security_bridge_state = "partial"
+        security_bridge_detail = "DB-assisted security inheritance resolver implemented; set --reportserver-db-conn (or REPORTSERVER_DB_CONN) to enable"
+    else:
+        security_bridge_state = "planned"
+        security_bridge_detail = "Some PBIRS security inheritance edge cases still require DB-assisted resolution"
+
     capabilities = [
         _entry("core.python_3_12_plus", "ready" if sys.version_info >= (3, 12) else "blocked",
                f"Running Python {platform.python_version()}"),
@@ -128,12 +167,15 @@ def generate_capability_report(args: Any) -> dict[str, Any]:
                "Safe DAX rewrites and diff reports (--dax-autofix)"),
         _entry("feature.capability_report", "ready",
                "Environment capability report command (--capability-report)"),
-        _entry("limitation.large_pbix_over_1gb", "planned",
-               "Enhanced >1GB PBIX import path is not yet fully implemented"),
-        _entry("limitation.data_driven_query_bridge", "planned",
-               "PBIRS REST does not expose query text; DB-assisted bridge is still pending"),
-        _entry("limitation.security_inheritance_db_bridge", "planned",
-               "Some PBIRS security inheritance edge cases still require DB-assisted resolution"),
+         _entry(
+             "limitation.large_pbix_over_1gb",
+             "ready" if has_large_file_impl else "planned",
+             "Enhanced >1GB PBIX import path is implemented (chunked upload via temporary upload location)"
+             if has_large_file_impl
+             else "Enhanced >1GB PBIX import path is not yet fully implemented",
+         ),
+         _entry("limitation.data_driven_query_bridge", query_bridge_state, query_bridge_detail),
+         _entry("limitation.security_inheritance_db_bridge", security_bridge_state, security_bridge_detail),
     ]
 
     return {

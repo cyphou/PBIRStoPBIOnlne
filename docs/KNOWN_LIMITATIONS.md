@@ -51,7 +51,7 @@
 
 | Area | Limitation | Status |
 |------|-----------|--------|
-| **PBI REST API Import Size** | .pbix files > 1 GB require enhanced import API | ⚠️ Not yet implemented |
+| **PBI REST API Import Size** | .pbix files > 1 GB require enhanced import API | ✅ IMPROVED (v6.2) — chunked upload path implemented via temporary upload location (`LargeFileHandler` + `ReportPublisher` strategy routing) |
 | **PBIRS PBIX upload acceptance** | Some PBIX files (especially `ConnectionType=pbiServiceLive`) open in Desktop RS but are rejected by PBIRS upload with HTTP 422 | ⚠️ Partial mitigation — use `scripts/inspect_pbix_metadata.ps1`, `scripts/probe_detailed_error_iwr.ps1`, and `scripts/upload_ordered_pbix.ps1` pre-check to detect and skip incompatible files early |
 | **Concurrent Imports** | PBI Online has throttling limits | ✅ IMPROVED (v1.1) — parallel downloads respect rate limits |
 | **Rate Limiting** | PBI REST API enforces rate limits | ✅ Handled — retry-after headers respected |
