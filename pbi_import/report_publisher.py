@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
+from pbi_import.pbix_compatibility import PbixCompatibilityInspector
 from pbi_import.large_file_handler import LargeFileHandler
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ class ReportPublisher:
         self.client = pbi_client
         self.large_file_threshold_mb = large_file_threshold_mb
         self.enable_large_file_upload = enable_large_file_upload
+        self.compatibility_inspector = PbixCompatibilityInspector()
 
     def publish_all(
         self,
@@ -100,6 +102,20 @@ class ReportPublisher:
                 "size_mb": file_size_mb,
             }
 
+        compatibility = self.compatibility_inspector.inspect(pbix_path)
+        if compatibility.get("status") == "FAIL":
+            raise RuntimeError(
+                "PBIX compatibility check failed before upload: "
+                + "; ".join(compatibility.get("issues", [])[:3])
+            )
+
+        if compatibility.get("warnings"):
+            logger.warning(
+                "PBIX compatibility warnings for %s: %s",
+                display_name,
+                "; ".join(compatibility.get("warnings", [])[:5]),
+            )
+
         strategy = self._select_import_strategy(pbix_path)
         logger.info(
             "Publishing %s to workspace %s (strategy=%s, size_mb=%.1f)",
@@ -158,6 +174,7 @@ class ReportPublisher:
             "status": "published",
             "strategy": strategy,
             "size_mb": file_size_mb,
+            "compatibility": compatibility,
         }
 
     def _select_import_strategy(self, pbix_path: Path) -> str:

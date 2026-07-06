@@ -1,4 +1,4 @@
-"""Integration and edge-case tests — realistic migration scenarios.
+"""Integration and edge-case tests ΓÇö realistic migration scenarios.
 
 These tests exercise multi-module interactions, error paths, and edge
 cases that the per-module unit tests miss.  They use only stdlib mocks
@@ -8,13 +8,26 @@ cases that the per-module unit tests miss.  They use only stdlib mocks
 import json
 import os
 import textwrap
+import zipfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
+
+def _write_valid_pbix(path: Path, display_name: str) -> None:
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("Version", "1.0")
+        zf.writestr("[Content_Types].xml", "<Types />")
+        zf.writestr("Report/Layout", '{"sections":[{"displayName":"%s"}]}' % display_name)
+        zf.writestr("Settings", '{"Version":1}')
+        zf.writestr("Metadata", '{"Version":3}')
+        zf.writestr("Connections", '{"Version":1,"Connections":[]}')
+        zf.writestr("SecurityBindings", "")
+        zf.writestr("DiagramLayout", '{"version":"1.0"}')
+
 # ---------------------------------------------------------------------------
-# 1. Assessment — realistic catalog scoring
+# 1. Assessment ΓÇö realistic catalog scoring
 # ---------------------------------------------------------------------------
 from pbirs_export.assessment import MigrationAssessment, GREEN, YELLOW, RED
 
@@ -180,7 +193,7 @@ class TestAssessmentEdgeCases:
         assert result["items"][0]["scores"]["custom_visuals"]["score"] == YELLOW
 
     def test_html_report_escapes_special_chars(self, tmp_path):
-        """HTML report must escape <script> in item names — no XSS."""
+        """HTML report must escape <script> in item names ΓÇö no XSS."""
         catalog = {
             "items": [{
                 "Id": "xss1",
@@ -201,7 +214,7 @@ class TestAssessmentEdgeCases:
 
 
 # ---------------------------------------------------------------------------
-# 2. ContentConverter — full file-I/O pipeline
+# 2. ContentConverter ΓÇö full file-I/O pipeline
 # ---------------------------------------------------------------------------
 from pbi_import.converter import ContentConverter
 
@@ -352,7 +365,7 @@ class TestConverterPipeline:
 
 
 # ---------------------------------------------------------------------------
-# 3. ReportPublisher — publish + gateway binding scenarios
+# 3. ReportPublisher ΓÇö publish + gateway binding scenarios
 # ---------------------------------------------------------------------------
 from pbi_import.report_publisher import ReportPublisher
 
@@ -366,7 +379,7 @@ class TestReportPublisherIntegration:
         powerbi_dir.mkdir()
 
         for name in ("Sales", "Inventory", "HR"):
-            (powerbi_dir / f"{name}.pbix").write_bytes(b"PK\x03\x04fakepbix")
+            _write_valid_pbix(powerbi_dir / f"{name}.pbix", name)
 
         # Mock returns unique IDs per call
         call_count = 0
@@ -390,7 +403,7 @@ class TestReportPublisherIntegration:
         """Gateway binding metadata should trigger bind_to_gateway."""
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Sales.pbix").write_bytes(b"PK\x03\x04data")
+        _write_valid_pbix(powerbi_dir / "Sales.pbix", "Sales")
 
         meta = {
             "gateway_binding": {
@@ -419,7 +432,7 @@ class TestReportPublisherIntegration:
         """Gateway binding failure should not prevent report from being listed as success."""
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Sales.pbix").write_bytes(b"PK\x03\x04data")
+        _write_valid_pbix(powerbi_dir / "Sales.pbix", "Sales")
         (powerbi_dir / "Sales.meta.json").write_text(json.dumps({
             "gateway_binding": {"gateway_id": "gw-1", "datasource_ids": []},
         }))
@@ -439,7 +452,7 @@ class TestReportPublisherIntegration:
         """API import failure should end up in failed list."""
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Bad.pbix").write_bytes(b"PK\x03\x04")
+        _write_valid_pbix(powerbi_dir / "Bad.pbix", "Bad")
 
         mock_pbi_client.import_pbix.side_effect = RuntimeError("403 Forbidden")
 
@@ -451,7 +464,7 @@ class TestReportPublisherIntegration:
 
 
 # ---------------------------------------------------------------------------
-# 4. MigrationValidator — real validation logic
+# 4. MigrationValidator ΓÇö real validation logic
 # ---------------------------------------------------------------------------
 from pbi_import.validator import MigrationValidator
 
@@ -571,7 +584,7 @@ class TestValidatorIntegration:
 
 
 # ---------------------------------------------------------------------------
-# 5. RollbackEngine — delete and error paths
+# 5. RollbackEngine ΓÇö delete and error paths
 # ---------------------------------------------------------------------------
 from pbi_import.rollback import RollbackEngine
 
@@ -661,7 +674,7 @@ class TestRollbackEngine:
 
 
 # ---------------------------------------------------------------------------
-# 6. PBIRSClient — HTTP layer
+# 6. PBIRSClient ΓÇö HTTP layer
 # ---------------------------------------------------------------------------
 from pbirs_export.api_client import PBIRSClient
 
@@ -745,7 +758,7 @@ class TestPBIRSClientHTTP:
 
 
 # ---------------------------------------------------------------------------
-# 7. PBIAuth — token acquisition
+# 7. PBIAuth ΓÇö token acquisition
 # ---------------------------------------------------------------------------
 from pbi_import.deploy.auth import PBIAuth
 
@@ -806,7 +819,7 @@ class TestPBIAuth:
 
 
 # ---------------------------------------------------------------------------
-# 8. PBIClient — REST wrapper
+# 8. PBIClient ΓÇö REST wrapper
 # ---------------------------------------------------------------------------
 from pbi_import.deploy.pbi_client import PBIClient
 
@@ -902,7 +915,7 @@ class TestPBIClientOperations:
 
 
 # ---------------------------------------------------------------------------
-# 9. PermissionMapper — SSRS → PBI role mapping
+# 9. PermissionMapper ΓÇö SSRS ΓåÆ PBI role mapping
 # ---------------------------------------------------------------------------
 from pbi_import.permission_mapper import PermissionMapper
 
@@ -964,7 +977,7 @@ class TestPermissionMapperRealistic:
 
         assigned = result["assigned"]
         assert len(assigned) >= 1
-        # Publisher → Contributor is higher than Browser → Viewer
+        # Publisher ΓåÆ Contributor is higher than Browser ΓåÆ Viewer
         assert assigned[0]["role"] == "Contributor"
 
     def test_unmapped_custom_role_tracked(self, mock_pbi_client):
@@ -986,7 +999,7 @@ class TestPermissionMapperRealistic:
 
 
 # ---------------------------------------------------------------------------
-# 10. End-to-end pipeline: Assess → Convert → Publish → Validate
+# 10. End-to-end pipeline: Assess ΓåÆ Convert ΓåÆ Publish ΓåÆ Validate
 # ---------------------------------------------------------------------------
 
 
@@ -1020,7 +1033,7 @@ class TestEndToEndPipeline:
         input_dir.mkdir()
 
         pbix = input_dir / "Sales.pbix"
-        pbix.write_bytes(b"PK\x03\x04" + b"\x00" * 200)
+        _write_valid_pbix(pbix, "Sales")
 
         manifest = {
             "download_results": {
@@ -1061,8 +1074,8 @@ class TestEndToEndPipeline:
         """If publish partially fails, rollback should clean up successful items."""
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Good.pbix").write_bytes(b"PK\x03\x04ok")
-        (powerbi_dir / "Bad.pbix").write_bytes(b"PK\x03\x04bad")
+        _write_valid_pbix(powerbi_dir / "Good.pbix", "Good")
+        _write_valid_pbix(powerbi_dir / "Bad.pbix", "Bad")
 
         call_count = 0
         def side_effect(**kwargs):

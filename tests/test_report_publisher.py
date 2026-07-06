@@ -1,8 +1,24 @@
 """Tests for ReportPublisher."""
 
-import pytest
+import zipfile
 from pathlib import Path
+
+import pytest
+
 from pbi_import.report_publisher import ReportPublisher
+
+
+def _write_valid_pbix(path: Path, display_name: str = "Report") -> None:
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("Version", "1.0")
+        zf.writestr("[Content_Types].xml", "<Types />")
+        zf.writestr("Report/Layout", '{"sections":[{"displayName":"%s"}]}' % display_name)
+        zf.writestr("Settings", '{"Version":1}')
+        zf.writestr("Metadata", '{"Version":3}')
+        zf.writestr("Connections", '{"Version":1,"Connections":[]}')
+        zf.writestr("SecurityBindings", "")
+        zf.writestr("DiagramLayout", '{"version":"1.0"}')
+        zf.writestr("docProps/custom.xml", "<Properties><property name='PBIDesktopVersion'><vt:lpwstr>2.125.816.0</vt:lpwstr></property></Properties>")
 
 
 class TestReportPublisher:
@@ -15,7 +31,7 @@ class TestReportPublisher:
     def test_publish_dry_run(self, mock_pbi_client, tmp_path):
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Sales.pbix").write_bytes(b"PK\x03\x04fake")
+        _write_valid_pbix(powerbi_dir / "Sales.pbix", "Sales")
 
         publisher = ReportPublisher(mock_pbi_client)
         result = publisher.publish_all(str(tmp_path), "ws-001", dry_run=True)
@@ -26,7 +42,7 @@ class TestReportPublisher:
     def test_publish_pbix(self, mock_pbi_client, tmp_path):
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Report.pbix").write_bytes(b"PK\x03\x04fake")
+        _write_valid_pbix(powerbi_dir / "Report.pbix", "Report")
 
         publisher = ReportPublisher(mock_pbi_client)
         result = publisher.publish_all(str(tmp_path), "ws-001")
@@ -37,7 +53,7 @@ class TestReportPublisher:
     def test_publish_pbix_uses_large_strategy(self, mock_pbi_client, tmp_path):
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Large.pbix").write_bytes(b"X" * 2048)
+        _write_valid_pbix(powerbi_dir / "Large.pbix", "Large")
 
         mock_pbi_client.create_temporary_upload_location.return_value = "https://upload.example"
         mock_pbi_client.upload_chunk.return_value = None
@@ -59,7 +75,7 @@ class TestReportPublisher:
 
         powerbi_dir = tmp_path / "powerbi"
         powerbi_dir.mkdir()
-        (powerbi_dir / "Large.pbix").write_bytes(b"X" * 2048)
+        _write_valid_pbix(powerbi_dir / "Large.pbix", "Large")
 
         client = MagicMock(spec=["import_pbix"])  # no enhanced methods
         publisher = ReportPublisher(client, large_file_threshold_mb=0)
@@ -76,9 +92,9 @@ class TestReportPublisher:
         small = powerbi_dir / "small.pbix"
         mid = powerbi_dir / "mid.pbix"
         large = powerbi_dir / "large.pbix"
-        small.write_bytes(b"x")
-        mid.write_bytes(b"x")
-        large.write_bytes(b"x")
+        _write_valid_pbix(small, "small")
+        _write_valid_pbix(mid, "mid")
+        _write_valid_pbix(large, "large")
 
         # Simulate effective file-band classification without creating massive files on disk.
         def _fake_needs_chunked(path: str, threshold_mb: int = 1024) -> bool:

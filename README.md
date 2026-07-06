@@ -98,6 +98,9 @@ python migrate.py --server URL --full --workspace-id <ID> --verbose --log-file m
 
 # Semantic model merge assessment (JSON + dedicated HTML)
 python migrate.py --assess-semantic-merge --output-dir artifacts
+
+# PBIX compatibility report for common PBIRS upload blockers
+python migrate.py --pbix-compatibility-report --input-dir artifacts/converted --output-dir artifacts
 ```
 
 ---

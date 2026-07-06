@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import zipfile
 
 import migrate
 from pbi_import.pipeline_checkpoint import PipelineCheckpoint
@@ -113,11 +114,23 @@ class TestPreflight:
 # ---------------------------------------------------------------------------
 
 class TestParallelPublishers:
+    @staticmethod
+    def _write_valid_pbix(path, display_name: str) -> None:
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("Version", "1.0")
+            zf.writestr("[Content_Types].xml", "<Types />")
+            zf.writestr("Report/Layout", '{"sections":[{"displayName":"%s"}]}' % display_name)
+            zf.writestr("Settings", '{"Version":1}')
+            zf.writestr("Metadata", '{"Version":3}')
+            zf.writestr("Connections", '{"Version":1,"Connections":[]}')
+            zf.writestr("SecurityBindings", "")
+            zf.writestr("DiagramLayout", '{"version":"1.0"}')
+
     def test_report_publisher_workers_kwarg(self, tmp_path):
         pbix_dir = tmp_path / "powerbi"
         pbix_dir.mkdir()
         for i in range(3):
-            (pbix_dir / f"r{i}.pbix").write_bytes(b"x")
+            self._write_valid_pbix(pbix_dir / f"r{i}.pbix", f"r{i}")
         client = MagicMock()
         client.import_pbix.return_value = {"id": "r", "datasets": [{"id": "d"}]}
         result = ReportPublisher(client).publish_all(str(tmp_path), "ws-1", workers=2)

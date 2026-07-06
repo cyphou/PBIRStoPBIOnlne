@@ -9,6 +9,7 @@ import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+import zipfile
 
 import pytest
 
@@ -260,6 +261,68 @@ class TestSemanticMergeAssessment:
         summary = payload.get("summary", {})
         assert summary.get("semantic_merge_groups", 0) >= 1
         assert summary.get("status") in {"READY", "CONDITIONAL"}
+
+
+class TestPbixCompatibilityReport:
+    def _write_pbix(self, path: Path, *, include_data_model: bool = True) -> None:
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("Version", "1.0")
+            zf.writestr("[Content_Types].xml", "<Types />")
+            zf.writestr("Report/Layout", json.dumps({"sections": [{"displayName": "ReportSection"}]}))
+            zf.writestr("Settings", json.dumps({"Version": 1}))
+            zf.writestr("Metadata", json.dumps({"Version": 3}))
+            zf.writestr("Connections", json.dumps({"Version": 1, "Connections": []}))
+            zf.writestr("SecurityBindings", "")
+            zf.writestr("DiagramLayout", json.dumps({"version": "1.0"}))
+            zf.writestr("docProps/custom.xml", "<Properties><property name='PBIDesktopVersion'><vt:lpwstr>2.125.816.0</vt:lpwstr></property></Properties>")
+            if include_data_model:
+                zf.writestr("DataModel", b"\x00" * 16)
+                zf.writestr("DataMashup", b"\x00" * 16)
+
+    def test_pbix_compatibility_report_generates_json_and_html(
+        self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client
+    ):
+        converted = tmp_path / "converted"
+        pbix_dir = converted / "powerbi"
+        pbix_dir.mkdir(parents=True)
+        self._write_pbix(pbix_dir / "Good.pbix")
+        (pbix_dir / "Broken.pbix").write_text("not a zip", encoding="utf-8")
+
+        rc = _run_cli(
+            ["--pbix-compatibility-report", "--output-dir", str(tmp_path), "--input-dir", str(converted)],
+            monkeypatch,
+            fake_pbirs_client,
+            fake_pbi_client,
+        )
+
+        assert rc == migrate.ExitCode.SUCCESS
+        assert (tmp_path / "pbix_compatibility_report.json").exists()
+        assert (tmp_path / "pbix_compatibility_report.html").exists()
+
+        payload = json.loads((tmp_path / "pbix_compatibility_report.json").read_text(encoding="utf-8"))
+        summary = payload.get("summary", {})
+        assert summary.get("total_files") == 2
+        assert summary.get("failed", 0) >= 1
+
+    def test_pbix_compatibility_report_marks_good_packages_warn_or_pass(
+        self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client
+    ):
+        converted = tmp_path / "converted"
+        pbix_dir = converted / "powerbi"
+        pbix_dir.mkdir(parents=True)
+        self._write_pbix(pbix_dir / "Good.pbix")
+
+        rc = _run_cli(
+            ["--pbix-compatibility-report", "--output-dir", str(tmp_path), "--input-dir", str(converted)],
+            monkeypatch,
+            fake_pbirs_client,
+            fake_pbi_client,
+        )
+
+        assert rc == migrate.ExitCode.SUCCESS
+        payload = json.loads((tmp_path / "pbix_compatibility_report.json").read_text(encoding="utf-8"))
+        summary = payload.get("summary", {})
+        assert summary.get("status") in {"PASS", "WARN"}
 
 
 class TestSecurityDbAssist:

@@ -56,6 +56,16 @@ Outputs:
 - artifacts/semantic_merge_assessment.json
 - artifacts/semantic_merge_assessment.html
 
+### PBIX compatibility report
+
+```bash
+python migrate.py --pbix-compatibility-report --input-dir artifacts/converted --output-dir artifacts
+```
+
+Outputs:
+- artifacts/pbix_compatibility_report.json
+- artifacts/pbix_compatibility_report.html
+
 ## Project Structure
 
 | Module | Purpose |

@@ -1201,6 +1201,38 @@ def _run_semantic_merge_assessment(args: argparse.Namespace, logger: logging.Log
     return ExitCode.SUCCESS
 
 
+def _run_pbix_compatibility_report(args: argparse.Namespace, logger: logging.Logger) -> int:
+    """Inspect converted PBIX files for common upload blockers and emit JSON + HTML reports."""
+    from pbi_import.pbix_compatibility import PbixCompatibilityInspector
+
+    root = Path(args.output_dir) if getattr(args, "output_dir", None) else Path("artifacts")
+    source_root = Path(args.input_dir) if getattr(args, "input_dir", None) else root
+
+    inspector = PbixCompatibilityInspector()
+    report = inspector.inspect_directory(source_root)
+
+    root.mkdir(parents=True, exist_ok=True)
+    json_out = root / "pbix_compatibility_report.json"
+    html_out = root / "pbix_compatibility_report.html"
+
+    json_out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    inspector.generate_html_report(report, html_out)
+
+    summary = report.get("summary", {})
+    logger.info(
+        "PBIX compatibility report: status=%s total=%s pass=%s warn=%s fail=%s",
+        summary.get("status", "FAIL"),
+        summary.get("total_files", 0),
+        summary.get("passed", 0),
+        summary.get("warned", 0),
+        summary.get("failed", 0),
+    )
+    logger.info("PBIX compatibility report JSON: %s", json_out)
+    logger.info("PBIX compatibility report HTML: %s", html_out)
+
+    return ExitCode.SUCCESS
+
+
 def _load_json(path: Path, default: Any = None) -> Any:
     """Load JSON from ``path``, returning ``default`` (or ``{}``) if missing."""
     if not path.exists():
@@ -1372,6 +1404,11 @@ Examples:
         action="store_true",
         help="Assess semantic-model merge feasibility and generate semantic_merge_assessment.html",
     )
+    phases.add_argument(
+        "--pbix-compatibility-report",
+        action="store_true",
+        help="Inspect converted PBIX files for common PBIRS upload blockers and generate pbix_compatibility_report.html",
+    )
 
     # Output
     output = p.add_argument_group("Output")
@@ -1541,6 +1578,9 @@ def main() -> int:
 
     if getattr(args, "assess_semantic_merge", False):
         return _finalise_early_exit(args, logger, _run_semantic_merge_assessment(args, logger))
+
+    if getattr(args, "pbix_compatibility_report", False):
+        return _finalise_early_exit(args, logger, _run_pbix_compatibility_report(args, logger))
 
     if getattr(args, "sync_daemon", False):
         return _finalise_early_exit(args, logger, _run_sync_daemon(args, logger))
