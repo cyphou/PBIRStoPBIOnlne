@@ -25,7 +25,7 @@ through a 5-phase pipeline: Assessment → Export → Conversion → Import → 
 | PBIRS Type     | PBI Online Target        | Requirements         |
 |----------------|--------------------------|----------------------|
 | PowerBIReport  | Power BI Report          | Standard workspace   |
-| Report (.rdl)  | Paginated Report         | Premium/PPU          |
+| Report (.rdl)  | Paginated Report         | Pro/PPU for shared workspaces; capacity for free-user consumption |
 | DataSet        | Semantic Model           | Via .pbix import     |
 | Kpi            | Scorecard/Goals          | Manual               |
 | MobileReport   | N/A (deprecated)         | Not migratable       |

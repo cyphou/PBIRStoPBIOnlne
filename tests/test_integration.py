@@ -241,8 +241,8 @@ class TestConverterPipeline:
         assert (output_dir / "powerbi" / "SalesDashboard.meta.json").exists()
         assert (output_dir / "paginated" / "InvoiceReport.meta.json").exists()
 
-    def test_rdl_metadata_flags_premium_required(self, tmp_path):
-        """Paginated report metadata must note Premium requirement."""
+    def test_rdl_metadata_flags_capacity_guidance(self, tmp_path):
+        """Paginated report metadata must note current capacity guidance."""
         input_dir = tmp_path / "input"
         output_dir = tmp_path / "output"
         input_dir.mkdir()
@@ -257,8 +257,8 @@ class TestConverterPipeline:
         converter.convert_all()
 
         meta = json.loads((output_dir / "paginated" / "Report.meta.json").read_text())
-        assert meta["requires_premium"] is True
-        assert "Premium" in meta["notes"][0]
+        assert meta["requires_premium"] is False
+        assert "shared-workspace publishing" in meta["notes"][0]
 
     def test_gateway_mapping_applied_to_pbix(self, tmp_path):
         """Gateway mapping should appear in conversion metadata."""

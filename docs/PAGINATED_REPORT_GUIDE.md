@@ -2,8 +2,10 @@
 
 ## Overview
 
-Paginated reports (.rdl) from PBIRS require **Power BI Premium** or **Premium Per User (PPU)** capacity
-in PBI Online.
+Paginated reports (.rdl) from PBIRS can be published in PBI Online without mandatory capacity in all cases.
+In practice:
+- Pro/PPU is used for publishing to shared workspaces.
+- Capacity (Fabric F64+ or Premium P1+) is required when free users consume shared content.
 
 > [!NOTE]
 > The tool's `rdl_analyser` and `rdl_modifier` modules automatically detect and strip unsupported features — no manual RDL editing required for most reports.
@@ -12,7 +14,8 @@ in PBI Online.
 
 ## 📋 Requirements
 
-- **Premium or PPU capacity** assigned to the target workspace
+- **Pro or PPU** for publishing to shared workspaces
+- **Capacity (Fabric F64+ or Premium P1+)** for free-user consumption scenarios
 - **On-premises data gateway** if the report connects to on-prem data sources
 - RDL files must not use unsupported features (auto-stripped by `rdl_modifier`)
 
@@ -46,7 +49,7 @@ in PBI Online.
 2. **Auto-strip** — `rdl_modifier` removes custom code/assemblies/classes (with backup)
 3. **Resolve subreports** — `subreport_resolver` computes safe import order
 4. **Export** — download .rdl files from PBIRS
-5. **Import** — publish to Premium workspace via PBI REST API
+5. **Import** — publish to target workspace via PBI REST API
 6. **Bind datasources** — configure gateway or PBI dataset connection
 7. **Test** — verify rendering, parameters, export, and subscriptions
 

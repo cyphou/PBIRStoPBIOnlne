@@ -4,7 +4,7 @@
 
 - [ ] **Run assessment** — `python migrate.py --server URL --assess`
 - [ ] **Review HTML report** — check GREEN/YELLOW/RED scores per item
-- [ ] **Identify Premium/PPU needs** — paginated reports require Premium capacity
+- [ ] **Identify licensing/capacity needs** — Pro/PPU for shared-workspace publishing; capacity needed for free-user consumption
 - [ ] **Analyze RDL features** — review `rdl_analysis.json` for custom code/assemblies
 - [ ] **Set up data gateway** — install and configure on-premises data gateway
 - [ ] **Register Azure AD app** — service principal with PBI API permissions
@@ -29,7 +29,7 @@
 
 ### Wave 2 — Minor Adjustments (🟡 YELLOW items)
 - [ ] Resolve gateway binding issues
-- [ ] Assign Premium capacity for paginated reports
+- [ ] Assign capacity if free-user consumption at scale is required
 - [ ] Resolve subreport dependencies (use `subreport_resolver` import order)
 - [ ] Map custom SSRS roles manually
 - [ ] Import and validate

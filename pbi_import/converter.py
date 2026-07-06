@@ -146,9 +146,12 @@ class ContentConverter:
             "source": str(source),
             "destination": str(dest),
             "type": "PaginatedReport",
-            "requires_premium": True,
+            "requires_premium": False,
             "gateway_binding": self._resolve_gateway(item),
-            "notes": ["Paginated reports require Premium or PPU capacity"],
+            "notes": [
+                "Paginated reports use Pro/PPU for shared-workspace publishing; "
+                "capacity is needed for free-user consumption scenarios"
+            ],
         }
 
         meta_path = dest.with_suffix(".meta.json")

@@ -54,7 +54,10 @@ Not directly to a native PBI Online artifact. Mobile Reports are still deprecate
 
 ### Do paginated reports require Premium?
 
-Yes. Paginated reports (.rdl) require **Power BI Premium** or **Premium Per User (PPU)** capacity.
+Not always. Current guidance is:
+- **Create/publish to My Workspace:** no Pro/PPU required.
+- **Publish to shared workspaces:** **Pro or PPU** required.
+- **Free users consuming shared content:** workspace must be on **Fabric capacity (F64+)** or **Power BI Premium (P1+)**.
 
 ### What about KPIs?
 

@@ -275,7 +275,7 @@ flowchart LR
 | PBIRS Content | PBI Online Target | Requirements |
 |---------------|-------------------|--------------|
 | Power BI Reports (.pbix) | Power BI Reports | Standard workspace |
-| Paginated Reports (.rdl) | Paginated Reports | Premium/PPU capacity |
+| Paginated Reports (.rdl) | Paginated Reports | Pro/PPU to publish to shared workspaces; capacity required for free-user consumption |
 | Shared Datasets (.rsd) | Semantic Models | Connection string update |
 | KPIs | Scorecards / Goals | Auto-generated via `ScorecardGenerator` |
 | Data Sources (.rds) | Gateway Connections | Gateway binding |
@@ -313,7 +313,7 @@ See:
 4. **Gateway Requirements** — On-prem data gateway needs
 5. **Paginated Features** — RDL feature support in PBI Online
 6. **Subscription Migration** — Email/file-share/data-driven mapping
-7. **Capacity Requirements** — Premium/PPU needs
+7. **Capacity Requirements** — Capacity and licensing fit (Pro/PPU vs capacity-backed free consumption)
 8. **Data Model** — DirectQuery/Import/Composite compatibility
 9. **Custom Visuals** — Org visual gallery mapping
 
