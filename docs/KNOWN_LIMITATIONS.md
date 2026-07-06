@@ -1,5 +1,9 @@
 # ⚠️ Known Limitations
 
+This guide tracks migration limitations, implementation status, and available mitigation paths.
+
+Reference index: [README.md](README.md)
+
 > **Last updated:** v1.7.0 — Hardening + Gap Closure. Most prior gaps now have explicit bridges.
 
 ---

@@ -1,5 +1,9 @@
 # 🚀 Deployment Guide
 
+This guide explains how to configure identity, authentication, and workspace deployment for migration runs.
+
+Reference index: [README.md](README.md)
+
 This guide covers deploying migrated content to Power BI Online workspaces.
 
 ---

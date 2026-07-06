@@ -1,5 +1,9 @@
 # Adding Power BI Reports (.pbix) to PBIRS Test Server
 
+This guide explains PBIRS PBIX compatibility constraints and the validated upload workflow.
+
+Reference index: [README.md](README.md)
+
 ## Current Status
 
 The PBIRS test server (`http://localhost/Reports`) currently has **only paginated (.rdl) reports**.

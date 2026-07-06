@@ -1,5 +1,9 @@
 # ✅ Migration Checklist
 
+This checklist covers pre-migration readiness, execution waves, and post-migration validation.
+
+Reference index: [README.md](README.md)
+
 ## 📋 Pre-Migration
 
 - [ ] **Run assessment** — `python migrate.py --server URL --assess`

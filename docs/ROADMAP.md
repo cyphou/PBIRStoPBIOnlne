@@ -1,5 +1,9 @@
 # 🗺️ Roadmap
 
+This roadmap tracks completed milestones and upcoming capability work for the migration platform.
+
+Reference index: [README.md](README.md)
+
 ## ✅ v1.1 — Performance & Resilience
 - [x] Parallel content download with configurable worker count (`--parallel N`)
 - [x] Progress bar for long-running operations

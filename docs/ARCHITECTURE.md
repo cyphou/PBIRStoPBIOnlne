@@ -1,5 +1,9 @@
 # 🏗️ Architecture
 
+This guide describes the migration pipeline architecture, core modules, and data flow.
+
+Reference index: [README.md](README.md)
+
 ## Overview
 
 **PBIRS-to-PBI-Online** migrates Power BI Report Server content to Power BI Online

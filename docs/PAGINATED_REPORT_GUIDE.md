@@ -1,5 +1,9 @@
 # 📄 Paginated Report Guide
 
+This guide explains paginated report compatibility, licensing requirements, and migration steps.
+
+Reference index: [README.md](README.md)
+
 ## Overview
 
 Paginated reports (.rdl) from PBIRS can be published in PBI Online without mandatory capacity in all cases.

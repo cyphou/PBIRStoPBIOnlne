@@ -1,5 +1,9 @@
 # ❓ FAQ — PBIRS to PBI Online Migration
 
+This FAQ answers common migration, licensing, authentication, and troubleshooting questions.
+
+Reference index: [README.md](README.md)
+
 ## General
 
 ### Does this tool modify anything on the PBIRS server?

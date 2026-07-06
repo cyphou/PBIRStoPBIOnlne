@@ -1,5 +1,9 @@
 # 🔌 Gateway Mapping Guide
 
+This guide explains how to map and bind on-premises data sources through the Power BI gateway.
+
+Reference index: [README.md](README.md)
+
 ## Overview
 
 When migrating from PBIRS to PBI Online, reports that connect to **on-premises data sources**

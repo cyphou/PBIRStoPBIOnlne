@@ -1,5 +1,9 @@
 # 🔒 Permission Mapping Guide
 
+This guide maps SSRS permissions to Power BI workspace roles and highlights security-model differences.
+
+Reference index: [README.md](README.md)
+
 ## 🔄 SSRS Roles → PBI Online Workspace Roles
 
 | SSRS Role | PBI Workspace Role | Notes |

@@ -412,6 +412,18 @@ PBIReporttoPBIOnline/
 
 ---
 
+## 📚 Documentation
+
+Use the docs index for the same guide-first layout used in the TableauToPowerBI project template:
+
+- [docs/README.md](docs/README.md)
+- [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
+- [docs/MIGRATION_CHECKLIST.md](docs/MIGRATION_CHECKLIST.md)
+- [docs/FAQ.md](docs/FAQ.md)
+- [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)
+
+---
+
 ## 🛠️ Technologies
 
 - **Python 3.12+** — standard library only for core (no external dependencies)
