@@ -92,7 +92,7 @@ class MappingGenerator:
                 folder_data[folder_path] = {"count": 0, "types": set()}
 
         csv_path = output_dir / "folders_mapping.csv"
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow([
                 "folder_path",
@@ -135,7 +135,7 @@ class MappingGenerator:
         principals = self._collect_principals()
 
         csv_path = output_dir / "users_mapping.csv"
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow([
                 "pbirs_principal",
@@ -286,7 +286,7 @@ class MappingGenerator:
         unique_rows = self._deduplicate_connections(rows)
 
         csv_path = output_dir / "connections_mapping.csv"
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             writer.writerow([
                 "report_name",

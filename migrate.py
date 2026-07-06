@@ -140,10 +140,12 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
     """Phase 2: Export PBIRS content to local artifacts."""
     from pbirs_export.api_client import PBIRSClient
     from pbirs_export.catalog_extractor import CatalogExtractor
+    from pbirs_export.bpa_extractor import BPAExtractor
     from pbirs_export.content_downloader import ContentDownloader
     from pbirs_export.datasource_extractor import DatasourceExtractor
     from pbirs_export.mapping_generator import MappingGenerator
     from pbirs_export.permission_extractor import PermissionExtractor
+    from pbirs_export.role_membership_extractor import RoleMembershipExtractor
     from pbirs_export.security_extractor import SecurityExtractor
     from pbirs_export.subscription_extractor import SubscriptionExtractor
 
@@ -232,6 +234,28 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
     security = sec_extractor.extract_all(catalog)
     with open(output_dir / "security.json", "w", encoding="utf-8") as f:
         json.dump(security, f, indent=2, default=str)
+
+    # Extract role memberships for RLS/OLS planning.
+    role_extractor = RoleMembershipExtractor()
+    role_memberships = role_extractor.extract(permissions, security)
+    role_json = role_extractor.save_json(str(output_dir), role_memberships)
+    role_csv = role_extractor.save_csv(str(output_dir), role_memberships)
+    logger.info(
+        "RLS/OLS role-account extract generated: %s, %s",
+        role_json.name,
+        role_csv.name,
+    )
+
+    # Extract BPA with attached accounts.
+    bpa_extractor = BPAExtractor()
+    bpa_payload = bpa_extractor.extract(catalog, security)
+    bpa_json = bpa_extractor.save_json(str(output_dir), bpa_payload)
+    bpa_csv = bpa_extractor.save_csv(str(output_dir), bpa_payload)
+    logger.info(
+        "BPA account extract generated: %s, %s",
+        bpa_json.name,
+        bpa_csv.name,
+    )
 
     # Generate CSV mapping templates
     mapping_gen = MappingGenerator(
@@ -929,7 +953,11 @@ def _run_validation(args: argparse.Namespace, logger: logging.Logger) -> int:
         return ExitCode.AUTH_ERROR
 
     validator = MigrationValidator(pbi_client)
-    results = validator.validate_all(str(input_dir), workspace_id)
+    results = validator.validate_all(
+        str(input_dir),
+        workspace_id,
+        capacity_id=getattr(args, "capacity_id", None),
+    )
 
     # Save validation report
     with open(output_dir / "validation_report.json", "w", encoding="utf-8") as f:
@@ -941,6 +969,9 @@ def _run_validation(args: argparse.Namespace, logger: logging.Logger) -> int:
     passed = results.get("passed", 0)
     failed = results.get("failed", 0)
     logger.info("Validation complete: %d passed, %d failed", passed, failed)
+    bpa_score = results.get("semantic_bpa", {}).get("score")
+    if isinstance(bpa_score, int):
+        logger.info("Semantic BPA score: %d/100", bpa_score)
 
     # Visual diff HTML report (Sprint I3)
     diff_out = getattr(args, "visual_diff_report", None)

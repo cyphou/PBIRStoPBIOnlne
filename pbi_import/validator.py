@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from pbi_import.semantic_bpa import SemanticModelBPA
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,8 +23,16 @@ class MigrationValidator:
         catalog: dict,
         workspace_id: str,
         converted_dir: str,
+        capacity_id: str | None = None,
     ) -> dict:
         """Run post-migration validation."""
+        if not isinstance(catalog, dict):
+            catalog = {}
+
+        ds_payload = self._load_datasource_payload(converted_dir)
+        model_source = self._locate_model_source(converted_dir)
+        bpa = SemanticModelBPA()
+
         results = {
             "report_count": self._validate_report_count(catalog, workspace_id),
             "datasource_binding": self._validate_datasources(workspace_id),
@@ -30,8 +40,11 @@ class MigrationValidator:
             "refresh_status": self._validate_refresh(workspace_id),
             "permissions": self._validate_permissions(workspace_id),
             "custom_visuals": self._validate_custom_visuals(catalog, workspace_id),
+            "semantic_bpa": bpa.evaluate(catalog, ds_payload, model_source=model_source),
+            "semantic_capacity": bpa.evaluate_capacity_merge(catalog, capacity_id=capacity_id),
             "overall": "PASS",
             "issues": [],
+            "model_source": model_source,
         }
 
         # Determine overall status
@@ -42,6 +55,8 @@ class MigrationValidator:
             "refresh_status",
             "permissions",
             "custom_visuals",
+            "semantic_bpa",
+            "semantic_capacity",
         ):
             check = results[key]
             if check.get("status") == "FAIL":
@@ -59,7 +74,7 @@ class MigrationValidator:
         source_items = catalog.get("items", [])
         source_reports = [
             i for i in source_items
-            if i.get("Type") in ("PowerBIReport", "Report", "LinkedReport")
+            if isinstance(i, dict) and i.get("Type") in ("PowerBIReport", "Report", "LinkedReport")
         ]
 
         try:
@@ -133,17 +148,12 @@ class MigrationValidator:
 
     def _validate_binding_parity(self, workspace_id: str, converted_dir: str) -> dict:
         """Validate target datasource bindings against source connection expectations."""
-        ds_path = Path(converted_dir) / "datasources.json"
-        if not ds_path.exists():
+        payload = self._load_datasource_payload(converted_dir)
+        if not payload:
             return {
                 "status": "PASS",
                 "message": "No datasource baseline file found; parity check skipped",
             }
-
-        try:
-            payload = json.loads(ds_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as e:
-            return {"status": "WARN", "message": f"Could not parse datasource baseline: {e}"}
 
         expected_summary = payload.get("connection_summary", {}) if isinstance(payload, dict) else {}
         if not isinstance(expected_summary, dict):
@@ -228,6 +238,8 @@ class MigrationValidator:
     def _collect_required_custom_visuals(catalog: dict) -> set[str]:
         required: set[str] = set()
         for item in catalog.get("items", []):
+            if not isinstance(item, dict):
+                continue
             visuals = item.get("custom_visuals", [])
             if not isinstance(visuals, list):
                 continue
@@ -286,7 +298,7 @@ class MigrationValidator:
     # CLI-friendly helpers
     # ------------------------------------------------------------------
 
-    def validate_all(self, input_dir: str, workspace_id: str) -> dict:
+    def validate_all(self, input_dir: str, workspace_id: str, capacity_id: str | None = None) -> dict:
         """Run :meth:`validate` against catalog metadata on disk.
 
         Reads ``input_dir/export_manifest.json`` (or ``inventory.json``) to
@@ -294,7 +306,7 @@ class MigrationValidator:
         result enriched with ``passed`` / ``failed`` counters.
         """
         catalog = self._load_catalog(Path(input_dir))
-        result = self.validate(catalog, workspace_id, input_dir)
+        result = self.validate(catalog, workspace_id, input_dir, capacity_id=capacity_id)
 
         checks = (
             "report_count",
@@ -303,6 +315,8 @@ class MigrationValidator:
             "refresh_status",
             "permissions",
             "custom_visuals",
+            "semantic_bpa",
+            "semantic_capacity",
         )
         passed = sum(1 for k in checks if result.get(k, {}).get("status") == "PASS")
         failed = sum(1 for k in checks if result.get(k, {}).get("status") == "FAIL")
@@ -333,6 +347,8 @@ class MigrationValidator:
             "refresh_status",
             "permissions",
             "custom_visuals",
+            "semantic_bpa",
+            "semantic_capacity",
         )
         rows = []
         for key in checks:
@@ -357,6 +373,10 @@ class MigrationValidator:
         }.get(overall, "badge-grey")
 
         issues_html = "".join(f"<li>{_esc(i)}</li>" for i in result.get("issues", []))
+        bpa_score = result.get("semantic_bpa", {}).get("score")
+        bpa_html = f"<p><strong>Semantic BPA Score:</strong> {bpa_score}/100</p>" if isinstance(bpa_score, int) else ""
+        model_source = result.get("model_source")
+        model_html = f"<p><strong>Model Snapshot:</strong> {_esc(model_source)}</p>" if model_source else "<p><strong>Model Snapshot:</strong> not found</p>"
 
         html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -388,6 +408,8 @@ class MigrationValidator:
    <div class="section">
      <h2>Overall: <span class="badge {overall_css}">{_esc(overall)}</span></h2>
      <p>{result.get('passed', 0)} checks passed · {result.get('failed', 0)} checks failed</p>
+         {bpa_html}
+         {model_html}
    </div>
    <div class="section">
      <h2>Checks</h2>
@@ -405,6 +427,37 @@ class MigrationValidator:
 </html>"""
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html)
+
+    @staticmethod
+    def _load_datasource_payload(converted_dir: str) -> dict:
+        ds_path = Path(converted_dir) / "datasources.json"
+        if not ds_path.exists():
+            return {}
+        try:
+            payload = json.loads(ds_path.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+    @staticmethod
+    def _locate_model_source(converted_dir: str) -> str | None:
+        base = Path(converted_dir)
+        candidates = (
+            base / "model_snapshot.json",
+            base / "semantic_model.json",
+            base / "model.json",
+            base / "tmdl.json",
+        )
+        for candidate in candidates:
+            if candidate.exists():
+                return str(candidate)
+        for candidate in base.rglob("model_snapshot.json"):
+            if candidate.is_file():
+                return str(candidate)
+        for candidate in base.rglob("semantic_model.json"):
+            if candidate.is_file():
+                return str(candidate)
+        return None
 
 
 def _esc(text: Any) -> str:

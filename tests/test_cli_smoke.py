@@ -159,6 +159,33 @@ class TestCapabilityReport:
         assert "capabilities" in payload
         assert any(c.get("id") == "feature.capability_report" for c in payload["capabilities"])
 
+    def test_capability_report_includes_powerbi_desktop_rs_readiness(self, tmp_path, monkeypatch,
+                                                                      fake_pbirs_client, fake_pbi_client):
+        program_files = tmp_path / "Program Files"
+        desktop_bin = program_files / "Microsoft Power BI Desktop RS" / "bin"
+        desktop_bin.mkdir(parents=True)
+        (desktop_bin / "PBIDesktop.exe").write_text("", encoding="utf-8")
+
+        local_app_data = tmp_path / "LocalAppData"
+        workspace = local_app_data / "Microsoft" / "Power BI Desktop SSRS" / "AnalysisServicesWorkspaces" / "Workspace1"
+        workspace.mkdir(parents=True)
+        (workspace / "msmdsrv.port.txt").write_text("12345", encoding="utf-8")
+
+        monkeypatch.setenv("ProgramFiles", str(program_files))
+        monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+
+        out_json = tmp_path / "capabilities.json"
+        rc = _run_cli(
+            ["--capability-report", "--capability-report-out", str(out_json)],
+            monkeypatch, fake_pbirs_client, fake_pbi_client,
+        )
+        assert rc == migrate.ExitCode.SUCCESS
+
+        payload = json.loads(out_json.read_text(encoding="utf-8"))
+        ids = {c.get("id") for c in payload["capabilities"]}
+        assert "tool.powerbi_desktop_rs.installed" in ids
+        assert "tool.powerbi_desktop_rs.authoring_session" in ids
+
 
 class TestSecurityDbAssist:
     def test_export_strict_fail_on_security_diff(

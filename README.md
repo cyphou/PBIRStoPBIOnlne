@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | 🏷️ **Version** | 1.7.0 |
-| ✅ **Tests** | 513 passed · 24 test files |
+| ✅ **Tests** | 541 passed · 36 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -22,6 +22,8 @@ python migrate.py --server https://pbirs.company.com/reports --full --workspace-
 
 > [!TIP]
 > Start with `--assess` to get an HTML readiness report before migrating anything.
+>
+> For PBIX simulation or report-server prep, run `--capability-report` first to verify the local Power BI Desktop RS install and active Analysis Services workspace.
 
 <details>
 <summary><b>📦 Installation</b></summary>
@@ -294,6 +296,7 @@ Most historical gaps now have mitigation paths. Remaining high-priority limitati
 - **Large PBIX import (> 1 GB):** enhanced import path not fully implemented yet
 - **Data-driven subscription query extraction:** PBIRS REST API does not expose query text; DB bridge required for full fidelity
 - **PBIRS metadata edge cases:** some security inheritance details require DB-assisted resolution
+- **PBIRS PBIX upload acceptance:** PBIRS rejects some Desktop-openable PBIX packages (notably service-live reports) with HTTP 422
 
 See:
 - [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)
@@ -321,6 +324,37 @@ See:
 
 ---
 
+## 🧪 Export Artifacts For Security And BPA
+
+The export phase now emits account-attached security and BPA artifacts:
+
+- `rls_ols_role_accounts.json` and `rls_ols_role_accounts.csv`
+    - Normalized role/account assignments built from item policies, system policies, and effective permissions.
+- `bpa_accounts.json` and `bpa_accounts.csv`
+    - Per-item BPA status enriched with attached principals and RED/YELLOW category breakdown.
+- `model_snapshot.json` (optional input)
+    - If present in convert/validate input, semantic BPA uses this explicit model snapshot instead of heuristic-only fallback.
+
+---
+
+## 🛠️ PBIRS Upload Diagnostics (Desktop RS)
+
+When PBIRS upload returns HTTP 422 even though the report opens in Power BI Desktop RS, use the included scripts:
+
+- `scripts/probe_detailed_error_iwr.ps1`
+    - Captures server-side error body using `Invoke-WebRequest -SkipHttpErrorCheck`.
+- `scripts/inspect_pbix_metadata.ps1`
+    - Inspects PBIX internals (`Version`, `Settings`, `Metadata`, `Connections`).
+- `scripts/upload_ordered_pbix.ps1`
+    - Adds compatibility pre-check and skips known-incompatible files with explicit reason.
+
+Typical rejection pattern:
+
+- `Connections.ConnectionType = pbiServiceLive`
+    - These service-live PBIX packages can open locally but are often rejected by PBIRS import.
+
+---
+
 ## 🏗️ Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed module documentation.
@@ -340,6 +374,8 @@ PBIReporttoPBIOnline/
 │   ├── permission_extractor.py     #   SSRS role & permission extraction
 │   ├── subscription_extractor.py   #   Subscription & schedule extraction
 │   ├── security_extractor.py       #   Security model & inheritance analysis
+│   ├── role_membership_extractor.py#   RLS/OLS role-account export artifacts
+│   ├── bpa_extractor.py            #   BPA+account export artifacts
 │   ├── mapping_generator.py        #   CSV mapping template generation
 │   └── server_info.py              #   PBIRS server metadata
 ├── pbi_import/                     # Phase 3-5: Conversion, Import, Validation
@@ -359,6 +395,8 @@ PBIReporttoPBIOnline/
 │   ├── subscription_migrator.py    #   Subscription migration
 │   ├── refresh_scheduler.py        #   Refresh schedule configuration
 │   ├── validator.py                #   Post-migration validation
+│   ├── model_snapshot.py           #   Semantic model snapshot loader
+│   ├── semantic_bpa.py             #   Semantic BPA scoring + capacity merge checks
 │   ├── migration_report.py         #   Migration report (HTML + JSON)
 │   ├── rollback.py                 #   Rollback engine
 │   └── deploy/                     #   Auth & API clients

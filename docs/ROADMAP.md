@@ -152,6 +152,7 @@ Focus: make limitation workarounds safe and operational by default.
 
 - [ ] Promote large-file and DB bridge features from opt-in to default-on when prerequisites are met
 - [x] Add compatibility matrix command (`--capability-report`) to print what migration features are active for the current environment
+- [x] Add PBIRS upload diagnostics and compatibility pre-check scripts for Desktop RS local publishing workflows (`probe_detailed_error_iwr`, `inspect_pbix_metadata`, `upload_ordered_pbix` pre-check)
 - [ ] Add recovery playbooks in generated artifacts for partial-failure scenarios
 - [ ] Add stress tests for 10k+ item catalogs with mixed large-file import workloads
 
@@ -169,4 +170,33 @@ Release closes when all are true:
 - [ ] `KNOWN_LIMITATIONS.md` has no ⚠️ entries without an automated mitigation path
 - [ ] Test suite includes dedicated regression coverage for each formerly open limitation
 - [ ] README "Capabilities" and limitations status are fully consistent
+
+## 🎯 v6.5 — Real Semantic BPA (Next)
+
+Focus: replace heuristic BPA scoring with actual report/model inspection so the BPA result is computed from the imported `.pbix`/semantic model, not just catalog metadata.
+
+### 1) PBIX model extraction
+- [x] Add a model snapshot loader that consumes explicit semantic-model artifacts when present (`model_snapshot.json` / `semantic_model.json` / `model.json`)
+- [ ] Add a PBIX model reader that can inspect the exported `.pbix` package and extract model metadata from the real semantic model payload
+- [ ] Support a fallback path for TMDL / XMLA / tabular exports when the PBIX binary model cannot be parsed directly
+- [ ] Persist a normalized model snapshot artifact for downstream analysis (`model_snapshot.json` or equivalent)
+
+### 2) Model-level BPA scoring
+- [ ] Compute BPA from measures, columns, relationships, calculation groups, and model annotations
+- [ ] Detect DAX anti-patterns against the actual measure expressions, not catalog placeholders
+- [ ] Add rule-level scoring and an overall BPA score derived from real model metadata
+
+### 2.5) Account-attached security/BPA exports
+- [x] Export role-account extracts (`rls_ols_role_accounts.json/.csv`) from permissions + effective security
+- [x] Export BPA+account extracts (`bpa_accounts.json/.csv`) with RED/YELLOW category rollup and attached principals
+
+### 3) RLS/OLS + account attachment from the model
+- [ ] Read RLS roles and OLS definitions from the model snapshot when available
+- [ ] Attach principals/members directly to each model role in the BPA/role-account extracts
+- [ ] Emit clear gaps when the model contains roles but membership is missing or inaccessible
+
+### 4) Validation and UX
+- [x] Surface the BPA score in the validation report with a link to the model snapshot artifact
+- [ ] Add regression tests using a representative PBIX/model fixture so the BPA score is deterministic
+- [ ] Document when BPA is heuristic fallback vs. true model inspection in README and limitations docs
 

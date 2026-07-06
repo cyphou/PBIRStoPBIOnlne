@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased — Documentation + PBIRS Upload Diagnostics + Semantic BPA Export Enrichment
+
+### Documentation refresh
+- **`README.md`** — updated tested metrics (541 tests / 36 test files), added explicit sections for:
+	- export artifacts: `rls_ols_role_accounts.*` and `bpa_accounts.*`
+	- semantic model snapshot usage (`model_snapshot.json`)
+	- PBIRS upload diagnostics workflow and service-live incompatibility signal
+- **`docs/KNOWN_LIMITATIONS.md`** — added PBIRS HTTP 422 upload limitation for service-live PBIX and linked script-based mitigation workflow
+- **`docs/ROADMAP.md`** — tracked completion for PBIRS upload diagnostics/pre-check scripts and account-attached BPA/security exports
+
+### Export and validation enrichment
+- **`pbirs_export/role_membership_extractor.py`** (new) — emits role/account extracts with security type classification and deduplication (`rls_ols_role_accounts.json/.csv`)
+- **`pbirs_export/bpa_extractor.py`** (new) — emits account-attached BPA extracts (`bpa_accounts.json/.csv`) with per-item category rollups
+- **`pbi_import/model_snapshot.py`** (new) — resolves and normalizes explicit semantic model snapshot artifacts for downstream analysis
+- **`pbi_import/semantic_bpa.py`** (new) — semantic BPA scoring + capacity merge checks wired into validation
+
+### PBIRS local publishing diagnostics scripts
+- **`scripts/probe_detailed_error_iwr.ps1`** (new) — captures full PBIRS error body on failed upload
+- **`scripts/inspect_pbix_metadata.ps1`** (new) — inspects PBIX internals (`Version`, `Settings`, `Metadata`, `Connections`)
+- **`scripts/upload_ordered_pbix.ps1`** — now includes compatibility pre-check and clearer skip/failure behavior for known incompatible PBIX payloads
+
+### Validation
+- Test suite: **541 passed** (`pytest -q`)
+
 ## v1.7.0 — Sprint 8 — Hardening & PBIRS Gap Closure
 
 ### Hardening (Sprint J) — production readiness

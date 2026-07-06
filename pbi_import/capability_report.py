@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import platform
 import sys
 import time
@@ -18,6 +19,75 @@ def _has_module(name: str) -> bool:
 def _entry(cap_id: str, state: str, detail: str) -> dict[str, str]:
     """Build one capability row."""
     return {"id": cap_id, "state": state, "detail": detail}
+
+
+def _candidate_powerbi_desktop_rs_paths() -> list[Path]:
+    """Return likely Power BI Desktop RS executable locations on Windows."""
+    candidates: list[Path] = []
+    for env_name in ("ProgramFiles", "ProgramFiles(x86)"):
+        root = os.environ.get(env_name)
+        if not root:
+            continue
+        candidates.append(Path(root) / "Microsoft Power BI Desktop RS" / "bin" / "PBIDesktop.exe")
+    return candidates
+
+
+def _desktop_rs_workspace_root() -> Path:
+    """Return the local Analysis Services workspace root used by Desktop RS."""
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        return Path(local_app_data) / "Microsoft" / "Power BI Desktop SSRS" / "AnalysisServicesWorkspaces"
+    return Path.home() / "AppData" / "Local" / "Microsoft" / "Power BI Desktop SSRS" / "AnalysisServicesWorkspaces"
+
+
+def _powerbi_desktop_rs_capabilities() -> list[dict[str, str]]:
+    """Check local Power BI Desktop RS install and active authoring session state."""
+    install_path = next((path for path in _candidate_powerbi_desktop_rs_paths() if path.exists()), None)
+    workspace_root = _desktop_rs_workspace_root()
+    workspace_exists = workspace_root.exists()
+    port_files = list(workspace_root.rglob("msmdsrv.port.txt")) if workspace_exists else []
+
+    capabilities = []
+    if install_path:
+        capabilities.append(
+            _entry(
+                "tool.powerbi_desktop_rs.installed",
+                "ready",
+                f"Found PBIDesktop.exe at {install_path}",
+            )
+        )
+    else:
+        capabilities.append(
+            _entry(
+                "tool.powerbi_desktop_rs.installed",
+                "blocked",
+                "Power BI Desktop RS not found in Program Files",
+            )
+        )
+
+    if workspace_exists:
+        detail = f"AnalysisServicesWorkspaces root: {workspace_root}"
+        if port_files:
+            detail += f"; live AS session detected ({port_files[0].parent.name})"
+        else:
+            detail += "; no live AS session detected"
+        capabilities.append(
+            _entry(
+                "tool.powerbi_desktop_rs.authoring_session",
+                "ready" if port_files else "partial",
+                detail,
+            )
+        )
+    else:
+        capabilities.append(
+            _entry(
+                "tool.powerbi_desktop_rs.authoring_session",
+                "blocked",
+                f"AnalysisServicesWorkspaces root not found at {workspace_root}",
+            )
+        )
+
+    return capabilities
 
 
 def generate_capability_report(args: Any) -> dict[str, Any]:
@@ -47,6 +117,7 @@ def generate_capability_report(args: Any) -> dict[str, Any]:
         _entry("core.python_3_12_plus", "ready" if sys.version_info >= (3, 12) else "blocked",
                f"Running Python {platform.python_version()}"),
         _entry("core.import_deploy_optional_deps", auth_state, auth_detail),
+         *_powerbi_desktop_rs_capabilities(),
         _entry("feature.mobile_scaffold", "ready" if _has_module("pbi_import.mobile_extractor") else "blocked",
                "Mobile report scaffold extraction (--migrate-mobile)"),
         _entry("feature.ad_bridge", "ready" if _has_module("pbi_import.ad_group_bridge") else "blocked",

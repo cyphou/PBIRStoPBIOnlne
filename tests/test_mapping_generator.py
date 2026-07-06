@@ -81,7 +81,7 @@ def datasources():
 
 
 def _read_csv(path):
-    with open(path, newline="", encoding="utf-8") as f:
+    with open(path, newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
 

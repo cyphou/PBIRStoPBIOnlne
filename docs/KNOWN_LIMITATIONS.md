@@ -52,6 +52,7 @@
 | Area | Limitation | Status |
 |------|-----------|--------|
 | **PBI REST API Import Size** | .pbix files > 1 GB require enhanced import API | ⚠️ Not yet implemented |
+| **PBIRS PBIX upload acceptance** | Some PBIX files (especially `ConnectionType=pbiServiceLive`) open in Desktop RS but are rejected by PBIRS upload with HTTP 422 | ⚠️ Partial mitigation — use `scripts/inspect_pbix_metadata.ps1`, `scripts/probe_detailed_error_iwr.ps1`, and `scripts/upload_ordered_pbix.ps1` pre-check to detect and skip incompatible files early |
 | **Concurrent Imports** | PBI Online has throttling limits | ✅ IMPROVED (v1.1) — parallel downloads respect rate limits |
 | **Rate Limiting** | PBI REST API enforces rate limits | ✅ Handled — retry-after headers respected |
 | **PBIRS API Coverage** | ~90% of metadata available via REST API | ✅ IMPROVED (v6.2) — optional DB bridges for data-driven queries and security inheritance (`--allow-db-query-bridge`, `--security-db-assist`) |
@@ -62,3 +63,9 @@
 |------|-----------|--------|
 | **Large PBIRS Catalogs** | Exports can be slow for 1000+ items | ✅ IMPROVED (v1.1) — parallel downloads + checkpoint/resume |
 | **Network Interruptions** | Exports can fail mid-download | ✅ IMPROVED (v1.1) — checkpoint manager enables resume |
+
+## Semantic Model Intelligence
+
+| Area | Limitation | Status |
+|------|-----------|--------|
+| **BPA scoring** | Current BPA output is heuristic unless the imported model can be read from `.pbix` / TMDL / XMLA metadata | ⚠️ Planned (v6.5) — add true model-level extraction so BPA measures the actual report/semantic model instead of catalog-only metadata |

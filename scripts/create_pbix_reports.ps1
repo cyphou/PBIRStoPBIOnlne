@@ -300,22 +300,43 @@ if (-not (Test-Path "$workDir\backup")) { New-Item "$workDir\backup" -ItemType D
 if (-not (Test-Path $outputDir)) { New-Item $outputDir -ItemType Directory -Force | Out-Null }
 
 # ── Find PBI Desktop RS AS instance ──────────────────────────────────
-# PBI Desktop RS must be running — it starts its own msmdsrv.exe on a random port.
-# The port is written to msmdsrv.port.txt in the workspace directory.
-$asWorkspacesDir = Join-Path $env:LOCALAPPDATA "Microsoft\Power BI Desktop SSRS\AnalysisServicesWorkspaces"
-$portFiles = Get-ChildItem $asWorkspacesDir -Recurse -Filter "msmdsrv.port.txt" -ErrorAction SilentlyContinue
+# Prefer live process+socket discovery to avoid stale workspace files.
+$port = $null
+$msmdsrv = Get-CimInstance Win32_Process -Filter "name='msmdsrv.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.ExecutablePath -like "*Power BI Desktop RS*" } |
+    Select-Object -First 1
 
-if (-not $portFiles -or $portFiles.Count -eq 0) {
-    Write-Host "No PBI Desktop RS AS instance found. Starting PBI Desktop RS..." -ForegroundColor Yellow
-    Start-Process -FilePath (Join-Path $DesktopRsPath "PBIDesktop.exe")
-    Start-Sleep -Seconds 20
-    $portFiles = Get-ChildItem $asWorkspacesDir -Recurse -Filter "msmdsrv.port.txt" -ErrorAction SilentlyContinue
-    if (-not $portFiles) {
-        throw "PBI Desktop RS did not start its AS instance. Please start PBI Desktop RS manually first."
+if (-not $msmdsrv) {
+    Write-Host "No Desktop RS msmdsrv process found. Starting PBI Desktop RS..." -ForegroundColor Yellow
+    Start-Process -FilePath (Join-Path $DesktopRsPath "PBIDesktop.exe") | Out-Null
+    Start-Sleep -Seconds 15
+    $msmdsrv = Get-CimInstance Win32_Process -Filter "name='msmdsrv.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -like "*Power BI Desktop RS*" } |
+        Select-Object -First 1
+}
+
+if ($msmdsrv) {
+    $listen = Get-NetTCPConnection -State Listen -OwningProcess $msmdsrv.ProcessId -ErrorAction SilentlyContinue |
+        Sort-Object LocalPort |
+        Select-Object -First 1
+    if ($listen) {
+        $port = $listen.LocalPort
     }
 }
 
-$port = (Get-Content $portFiles[0].FullName).Trim()
+if (-not $port) {
+    # Fallback: workspace port file lookup
+    $asWorkspacesDir = Join-Path $env:LOCALAPPDATA "Microsoft\Power BI Desktop SSRS\AnalysisServicesWorkspaces"
+    $portFiles = Get-ChildItem $asWorkspacesDir -Recurse -Filter "msmdsrv.port.txt" -ErrorAction SilentlyContinue
+    if ($portFiles) {
+        $port = (Get-Content $portFiles[0].FullName).Trim()
+    }
+}
+
+if (-not $port) {
+    throw "Could not discover a live Desktop RS Analysis Services port. Start PBIDesktop RS and try again."
+}
+
 Write-Host "Found PBI Desktop RS AS instance on port $port" -ForegroundColor Green
 
 $connStr = "localhost:$port"
@@ -332,6 +353,12 @@ try {
 
     foreach ($rpt in $reports) {
         Write-Host "`nCreating model: $($rpt.Name)..." -ForegroundColor Yellow
+
+        $existingDb = $server.Databases.FindByName($rpt.Name)
+        if ($existingDb) {
+            Write-Host "  Existing model found, dropping: $($rpt.Name)" -ForegroundColor DarkYellow
+            $existingDb.Drop()
+        }
 
         # Create database
         $dbId = [guid]::NewGuid().ToString()
@@ -372,11 +399,16 @@ try {
         # Add to server and process
         $server.Databases.Add($db)
         $db.Update([Microsoft.AnalysisServices.UpdateOptions]::ExpandFull)
-        Write-Host "  Model created, processing..." -ForegroundColor Gray
+        Write-Host "  Model created, attempting process..." -ForegroundColor Gray
 
-        $db.Model.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
-        $db.Model.SaveChanges()
-        Write-Host "  Model processed successfully" -ForegroundColor Green
+        try {
+            $db.Model.RequestRefresh([Microsoft.AnalysisServices.Tabular.RefreshType]::Full)
+            $db.Model.SaveChanges()
+            Write-Host "  Model processed successfully" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "  WARN: model process failed; continuing with unprocessed backup. $($_.Exception.Message)" -ForegroundColor Yellow
+        }
 
         # Backup to ABF
         $abfPath = Join-Path $workDir "backup\$($rpt.Name).abf"

@@ -14,7 +14,7 @@ from pbirs_export.mapping_generator import MappingGenerator
 # ---------------------------------------------------------------------------
 
 def _read_csv(path: Path) -> list[dict]:
-    with open(path, newline="", encoding="utf-8") as f:
+    with open(path, newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
 
@@ -128,7 +128,7 @@ class TestCSVFileStructure:
     def test_folders_csv_headers(self, tmp_path, rich_catalog):
         gen = _make_generator(items=rich_catalog)
         paths = gen.generate_all(str(tmp_path))
-        with open(paths["folders"], newline="", encoding="utf-8") as f:
+        with open(paths["folders"], newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             headers = next(reader)
         assert headers == [
@@ -144,7 +144,7 @@ class TestCSVFileStructure:
             item_policies=[{"item_path": "/x", "policies": policies}]
         )
         paths = gen.generate_all(str(tmp_path))
-        with open(paths["users"], newline="", encoding="utf-8") as f:
+        with open(paths["users"], newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             headers = next(reader)
         assert headers == [
@@ -155,7 +155,7 @@ class TestCSVFileStructure:
     def test_connections_csv_headers(self, tmp_path, rich_embedded_ds):
         gen = _make_generator(embedded_ds=rich_embedded_ds)
         paths = gen.generate_all(str(tmp_path))
-        with open(paths["connections"], newline="", encoding="utf-8") as f:
+        with open(paths["connections"], newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             headers = next(reader)
         assert headers == [
