@@ -21,8 +21,12 @@ class SemanticMergeAssessment:
 
     def assess(self, catalog: dict[str, Any], capacity_id: str | None = None) -> dict[str, Any]:
         items = self._catalog_items(catalog)
-        splitter = ModelSplitter().analyse(items)
-        composite = CompositeModelPlanner().plan(items)
+        semantic_items = [
+            i for i in items
+            if i.get("Type") in ("PowerBIReport", "DataSet")
+        ]
+        splitter = ModelSplitter().analyse(semantic_items)
+        composite = CompositeModelPlanner().plan(semantic_items)
 
         split_groups = [
             r for r in splitter.get("recommendations", [])
@@ -53,7 +57,11 @@ class SemanticMergeAssessment:
                     f"Capacity configured ({capacity_id}) for composite model rollout"
                 )
 
-        if not split_groups and not composite_candidates:
+        if not semantic_items:
+            recommendations.append(
+                "No Power BI semantic-model artifacts found in catalog (PowerBIReport/DataSet)"
+            )
+        elif not split_groups and not composite_candidates:
             recommendations.append(
                 "No semantic-model merge opportunity detected from current catalog"
             )
@@ -74,8 +82,9 @@ class SemanticMergeAssessment:
             "status": status,
             "score": score,
             "catalog_items": len(items),
+            "semantic_items_analysed": len(semantic_items),
             "reports_analysed": sum(
-                1 for i in items if i.get("Type") in ("PowerBIReport", "Report")
+                1 for i in semantic_items if i.get("Type") == "PowerBIReport"
             ),
             "semantic_merge_groups": len(split_groups),
             "composite_candidates": len(composite_candidates),
