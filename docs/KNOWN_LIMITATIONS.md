@@ -72,4 +72,4 @@ Reference index: [README.md](README.md)
 
 | Area | Limitation | Status |
 |------|-----------|--------|
-| **BPA scoring** | Current BPA output is heuristic unless the imported model can be read from `.pbix` / TMDL / XMLA metadata | ⚠️ Planned (v6.5) — add true model-level extraction so BPA measures the actual report/semantic model instead of catalog-only metadata |
+| **BPA scoring** | BPA quality depends on model artifact availability (`DataModelSchema`, `model_snapshot.json`, TMDL/XMLA JSON) | ✅ IMPROVED (v6.5) — semantic BPA now reads PBIX DataModelSchema and TMDL/XMLA-style snapshots, emits model-derived rule scoring and role-membership gaps; falls back to heuristic checks when no model artifact is available |

@@ -4,8 +4,8 @@
 
 | | |
 |---|---|
-| 🏷️ **Version** | 1.7.0 |
-| ✅ **Tests** | 541 passed · 36 test files |
+| 🏷️ **Version** | 1.8.0 |
+| ✅ **Tests** | 554 passed · 33 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -236,6 +236,34 @@ flowchart LR
 | `--token TOKEN` | Bearer token for PBIRS REST API |
 | `--use-windows-auth` | Use current Windows credentials (NTLM/Kerberos) |
 
+### PBIRS Authentication Model
+
+PBIRS authentication is handled by the Python client (`pbirs_export/api_client.py`), not by PowerShell.
+
+- `--token`: sends `Authorization: Bearer <token>`
+- `--username` + `--password`: sends Basic auth header
+- `--use-windows-auth`: uses `requests-ntlm` session auth for NTLM/Kerberos
+
+PowerShell is only the shell used to run `python migrate.py` on Windows. The auth flow itself is inside the tool.
+
+Security guidance:
+
+- Prefer `--token` or Windows auth over putting passwords directly on the command line.
+- If you use Basic auth, prefer passing values from environment variables.
+
+Windows examples:
+
+```powershell
+# Windows integrated auth (NTLM/Kerberos)
+python migrate.py --server https://pbirs.company.com/reports --assess --use-windows-auth
+
+# Token auth
+python migrate.py --server https://pbirs.company.com/reports --assess --token "$env:PBIRS_TOKEN"
+
+# Basic auth (via environment variables)
+python migrate.py --server https://pbirs.company.com/reports --assess --username "$env:PBIRS_USERNAME" --password "$env:PBIRS_PASSWORD"
+```
+
 ### Phases
 | Flag | Description |
 |------|-------------|
@@ -340,6 +368,15 @@ The export phase now emits account-attached security and BPA artifacts:
     - Per-item BPA status enriched with attached principals and RED/YELLOW category breakdown.
 - `model_snapshot.json` (optional input)
     - If present in convert/validate input, semantic BPA uses this explicit model snapshot instead of heuristic-only fallback.
+- `.pbix` model extraction (automatic)
+    - Validation inspects PBIX `DataModelSchema` when explicit model JSON is absent.
+- `model_snapshot.normalized.json`
+    - Validation persists a normalized model snapshot for downstream analysis and deterministic BPA scoring.
+
+Semantic BPA execution mode:
+
+- **Model-based mode**: uses PBIX/TMDL/XMLA snapshot metadata (tables, measures, columns, relationships, calculation groups, annotations, and role-membership coverage).
+- **Heuristic mode**: used only when no model artifact can be resolved.
 
 ---
 

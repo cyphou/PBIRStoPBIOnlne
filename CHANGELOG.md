@@ -2,8 +2,18 @@
 
 ## Unreleased — Documentation + PBIRS Upload Diagnostics + Semantic BPA Export Enrichment
 
+### Semantic BPA model-intelligence upgrades
+- **`pbi_import/model_snapshot.py`** — now reads PBIX `DataModelSchema` and normalizes fallback TMDL/XMLA-style tabular JSON payloads (`database.model`, `model.tables`, top-level lists)
+- **`pbi_import/semantic_bpa.py`** — moved to rule-driven model scoring across tables/measures/columns/relationships/calculation groups/annotations, adds explicit role-membership coverage checks and `evaluation_mode` (`model_based` vs `heuristic`)
+- **`pbi_import/validator.py`** — resolves `.pbix` as model-source candidates and persists `model_snapshot.normalized.json` during validation
+- **`tests/test_validator.py`** — added PBIX fixture, XMLA fallback, role-membership gap, and deterministic score regression tests
+- **`pbirs_export/role_membership_extractor.py`** — now merges model-role principals (and explicit missing-principal gaps) into role-account exports
+- **`pbirs_export/bpa_extractor.py`** — now merges model-role principals into BPA account attachments and exports role-gap metadata
+- **`migrate.py`** — export phase now loads model snapshots and passes them into role/BPA extractors
+- **`tests/test_cli_smoke.py`** — added export-phase integration coverage for model-role propagation into `rls_ols_role_accounts.json` and `bpa_accounts.json`
+
 ### Documentation refresh
-- **`README.md`** — updated tested metrics (541 tests / 36 test files), added explicit sections for:
+- **`README.md`** — updated tested metrics (553 tests / 33 test files), added explicit sections for:
 	- export artifacts: `rls_ols_role_accounts.*` and `bpa_accounts.*`
 	- semantic model snapshot usage (`model_snapshot.json`)
 	- PBIRS upload diagnostics workflow and service-live incompatibility signal
@@ -22,7 +32,17 @@
 - **`scripts/upload_ordered_pbix.ps1`** — now includes compatibility pre-check and clearer skip/failure behavior for known incompatible PBIX payloads
 
 ### Validation
-- Test suite: **541 passed** (`pytest -q`)
+- Test suite: **554 passed** (`pytest -q`)
+
+## v1.8.0 — Semantic BPA Model Intelligence + Export Role Attachment
+
+### Highlights
+- Model-intelligent semantic BPA is now end-to-end, including PBIX `DataModelSchema` extraction and TMDL/XMLA-style JSON fallback normalization.
+- Validation now emits deterministic normalized model snapshots (`model_snapshot.normalized.json`) and model-based BPA rule output.
+- Export artifacts now include model-role principal attachments and explicit missing-principal gap signals in role/BPA extracts.
+
+### Validation
+- Test suite baseline: **554 passed** (`pytest -q`)
 
 ## v1.7.0 — Sprint 8 — Hardening & PBIRS Gap Closure
 

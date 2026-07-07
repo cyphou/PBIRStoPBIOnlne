@@ -181,26 +181,26 @@ Focus: replace heuristic BPA scoring with actual report/model inspection so the 
 
 ### 1) PBIX model extraction
 - [x] Add a model snapshot loader that consumes explicit semantic-model artifacts when present (`model_snapshot.json` / `semantic_model.json` / `model.json`)
-- [ ] Add a PBIX model reader that can inspect the exported `.pbix` package and extract model metadata from the real semantic model payload
-- [ ] Support a fallback path for TMDL / XMLA / tabular exports when the PBIX binary model cannot be parsed directly
-- [ ] Persist a normalized model snapshot artifact for downstream analysis (`model_snapshot.json` or equivalent)
+- [x] Add a PBIX model reader that can inspect the exported `.pbix` package and extract model metadata from the real semantic model payload
+- [x] Support a fallback path for TMDL / XMLA / tabular exports when the PBIX binary model cannot be parsed directly
+- [x] Persist a normalized model snapshot artifact for downstream analysis (`model_snapshot.normalized.json`)
 
 ### 2) Model-level BPA scoring
-- [ ] Compute BPA from measures, columns, relationships, calculation groups, and model annotations
-- [ ] Detect DAX anti-patterns against the actual measure expressions, not catalog placeholders
-- [ ] Add rule-level scoring and an overall BPA score derived from real model metadata
+- [x] Compute BPA from measures, columns, relationships, calculation groups, and model annotations
+- [x] Detect DAX anti-patterns against the actual measure expressions, not catalog placeholders
+- [x] Add rule-level scoring and an overall BPA score derived from real model metadata
 
 ### 2.5) Account-attached security/BPA exports
 - [x] Export role-account extracts (`rls_ols_role_accounts.json/.csv`) from permissions + effective security
 - [x] Export BPA+account extracts (`bpa_accounts.json/.csv`) with RED/YELLOW category rollup and attached principals
 
 ### 3) RLS/OLS + account attachment from the model
-- [ ] Read RLS roles and OLS definitions from the model snapshot when available
-- [ ] Attach principals/members directly to each model role in the BPA/role-account extracts
-- [ ] Emit clear gaps when the model contains roles but membership is missing or inaccessible
+- [x] Read RLS roles and OLS definitions from the model snapshot when available
+- [x] Attach principals/members directly to each model role in semantic BPA rule output
+- [x] Emit clear gaps when the model contains roles but membership is missing or inaccessible
 
 ### 4) Validation and UX
 - [x] Surface the BPA score in the validation report with a link to the model snapshot artifact
-- [ ] Add regression tests using a representative PBIX/model fixture so the BPA score is deterministic
-- [ ] Document when BPA is heuristic fallback vs. true model inspection in README and limitations docs
+- [x] Add regression tests using a representative PBIX/model fixture so the BPA score is deterministic
+- [x] Document when BPA is heuristic fallback vs. true model inspection in README and limitations docs
 

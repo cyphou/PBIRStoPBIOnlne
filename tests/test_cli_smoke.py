@@ -359,10 +359,21 @@ class TestSecurityDbAssist:
 
 
 class TestGatewayAutoConnectionFlow:
+    def _write_minimal_pbix(self, path: Path) -> None:
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("Version", "1.0")
+            zf.writestr("[Content_Types].xml", "<Types />")
+            zf.writestr("Report/Layout", json.dumps({"sections": [{"displayName": "ReportSection"}]}))
+            zf.writestr("Settings", json.dumps({"Version": 1}))
+            zf.writestr("Metadata", json.dumps({"Version": 3}))
+            zf.writestr("Connections", json.dumps({"Version": 1, "Connections": []}))
+            zf.writestr("SecurityBindings", "")
+            zf.writestr("DiagramLayout", json.dumps({"version": "1.0"}))
+
     def test_gateway_auto_creates_and_binds(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
         converted = tmp_path / "converted"
         (converted / "powerbi").mkdir(parents=True)
-        (converted / "powerbi" / "Report.pbix").write_bytes(b"PK\x03\x04")
+        self._write_minimal_pbix(converted / "powerbi" / "Report.pbix")
         (converted / "datasets").mkdir(parents=True)
         (converted / "paginated").mkdir(parents=True)
 
@@ -405,3 +416,44 @@ class TestGatewayAutoConnectionFlow:
         assert (converted / "connection_mapping_by_endpoint.csv").exists()
         fake_pbi_client.create_gateway_datasource.assert_called_once()
         assert fake_pbi_client.bind_to_gateway.called
+
+
+class TestExportModelRolePropagation:
+    def test_export_includes_model_role_principals_in_artifacts(
+        self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client
+    ):
+        class _FakeLoader:
+            def load(self, _source_path):
+                return {
+                    "available": True,
+                    "source": str(tmp_path / "model_snapshot.json"),
+                    "roles": [
+                        {"name": "RLS_Finance", "members": ["CONTOSO\\FinanceReaders"]},
+                        {"name": "OLS_Restricted"},
+                    ],
+                }
+
+        with patch("pbi_import.model_snapshot.ModelSnapshotLoader", _FakeLoader):
+            rc = _run_cli(
+                ["--server", "http://x", "--export", "--output-dir", str(tmp_path)],
+                monkeypatch,
+                fake_pbirs_client,
+                fake_pbi_client,
+            )
+
+        assert rc == migrate.ExitCode.SUCCESS
+
+        role_payload = json.loads((tmp_path / "rls_ols_role_accounts.json").read_text(encoding="utf-8"))
+        role_rows = role_payload.get("rows", [])
+        assert any(
+            r.get("source") == "model_snapshot.roles" and r.get("account") == "CONTOSO\\FinanceReaders"
+            for r in role_rows
+        )
+        assert "OLS_Restricted" in role_payload.get("summary", {}).get("model_roles_without_members", [])
+
+        bpa_payload = json.loads((tmp_path / "bpa_accounts.json").read_text(encoding="utf-8"))
+        assert bpa_payload.get("summary", {}).get("model_role_principal_count", 0) >= 1
+        assert any(
+            "CONTOSO\\FinanceReaders" in item.get("model_role_principals", [])
+            for item in bpa_payload.get("items", [])
+        )

@@ -148,6 +148,7 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
     from pbirs_export.role_membership_extractor import RoleMembershipExtractor
     from pbirs_export.security_extractor import SecurityExtractor
     from pbirs_export.subscription_extractor import SubscriptionExtractor
+    from pbi_import.model_snapshot import ModelSnapshotLoader
 
     logger.info("Phase 2: Export — downloading PBIRS content")
 
@@ -235,9 +236,16 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
     with open(output_dir / "security.json", "w", encoding="utf-8") as f:
         json.dump(security, f, indent=2, default=str)
 
+    model_snapshot = ModelSnapshotLoader().load(str(output_dir))
+    logger.info(
+        "Model snapshot for export artifacts: %s (%s)",
+        model_snapshot.get("source", "n/a"),
+        "available" if model_snapshot.get("available") else "unavailable",
+    )
+
     # Extract role memberships for RLS/OLS planning.
     role_extractor = RoleMembershipExtractor()
-    role_memberships = role_extractor.extract(permissions, security)
+    role_memberships = role_extractor.extract(permissions, security, model_snapshot=model_snapshot)
     role_json = role_extractor.save_json(str(output_dir), role_memberships)
     role_csv = role_extractor.save_csv(str(output_dir), role_memberships)
     logger.info(
@@ -248,7 +256,7 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
 
     # Extract BPA with attached accounts.
     bpa_extractor = BPAExtractor()
-    bpa_payload = bpa_extractor.extract(catalog, security)
+    bpa_payload = bpa_extractor.extract(catalog, security, model_snapshot=model_snapshot)
     bpa_json = bpa_extractor.save_json(str(output_dir), bpa_payload)
     bpa_csv = bpa_extractor.save_csv(str(output_dir), bpa_payload)
     logger.info(

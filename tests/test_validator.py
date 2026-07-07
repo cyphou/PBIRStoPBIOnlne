@@ -2,6 +2,7 @@
 
 import json
 import pytest
+import zipfile
 from pbi_import.validator import MigrationValidator
 
 
@@ -143,6 +144,133 @@ class TestMigrationValidator:
         assert result["semantic_bpa"]["model_snapshot"]["name"] == "Sales Model"
         assert result["semantic_bpa"]["score"] < 100
         assert any(rule["id"] == "dax_measure_health" for rule in result["semantic_bpa"]["rules"])
+        assert (tmp_path / "model_snapshot.normalized.json").exists()
+
+    def test_semantic_bpa_reads_model_from_pbix_datamodelschema(self, mock_pbi_client, tmp_path):
+        mock_pbi_client.list_reports.return_value = [{"id": "r1"}]
+        mock_pbi_client.list_datasets.return_value = []
+        mock_pbi_client.list_workspace_users.return_value = [{"user": "a"}, {"user": "b"}]
+
+        powerbi_dir = tmp_path / "powerbi"
+        powerbi_dir.mkdir(parents=True)
+        pbix_path = powerbi_dir / "Sales.pbix"
+        model_payload = {
+            "version": "1.0",
+            "model": {
+                "tables": [
+                    {
+                        "name": "Sales",
+                        "columns": [{"name": "Amount", "dataType": "double"}],
+                        "measures": [
+                            {"name": "Total Sales", "expression": "SUM(Sales[Amount])"}
+                        ],
+                    }
+                ],
+                "relationships": [{"name": "Sales_Date", "fromTable": "Sales", "toTable": "Date"}],
+                "roles": [{"name": "RLS_Sales"}],
+            },
+        }
+        with zipfile.ZipFile(pbix_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("DataModelSchema", json.dumps(model_payload))
+
+        catalog = {"items": [{"Type": "PowerBIReport", "Name": "Sales"}]}
+        validator = MigrationValidator(mock_pbi_client)
+        result = validator.validate(catalog, "ws-001", str(tmp_path))
+
+        assert result["model_source"].endswith("Sales.pbix")
+        assert result["semantic_bpa"]["model_snapshot"]["available"] is True
+        assert result["semantic_bpa"]["model_snapshot"]["model_type"] == "pbix_datamodelschema"
+        assert result["semantic_bpa"]["model_snapshot"]["measures"][0]["name"] == "Total Sales"
+        normalized = tmp_path / "model_snapshot.normalized.json"
+        assert normalized.exists()
+
+    def test_semantic_bpa_reads_xmla_tabular_fallback_snapshot(self, mock_pbi_client, tmp_path):
+        mock_pbi_client.list_reports.return_value = [{"id": "r1"}]
+        mock_pbi_client.list_datasets.return_value = []
+        mock_pbi_client.list_workspace_users.return_value = [{"user": "a"}, {"user": "b"}]
+
+        (tmp_path / "model.json").write_text(
+            json.dumps(
+                {
+                    "database": {
+                        "name": "FinanceDB",
+                        "model": {
+                            "tables": [
+                                {
+                                    "name": "Sales",
+                                    "columns": [{"name": "Amount", "dataType": "double"}],
+                                    "measures": [{"name": "Revenue", "expression": "SUM(Sales[Amount])"}],
+                                }
+                            ],
+                            "relationships": [{"name": "Sales_Date"}],
+                            "roles": [{"name": "RLS_Sales", "members": ["group://finance-readers"]}],
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        catalog = {"items": [{"Type": "PowerBIReport", "Name": "Sales"}]}
+        validator = MigrationValidator(mock_pbi_client)
+        result = validator.validate(catalog, "ws-001", str(tmp_path))
+
+        assert result["semantic_bpa"]["model_snapshot"]["model_type"] == "xmla_tabular_json"
+        assert result["semantic_bpa"]["evaluation_mode"] == "model_based"
+        assert any(r.get("id") == "role_membership_coverage" for r in result["semantic_bpa"]["rules"])
+
+    def test_semantic_bpa_warns_when_roles_have_no_members(self, mock_pbi_client, tmp_path):
+        mock_pbi_client.list_reports.return_value = [{"id": "r1"}]
+        mock_pbi_client.list_datasets.return_value = []
+        mock_pbi_client.list_workspace_users.return_value = [{"user": "a"}, {"user": "b"}]
+
+        (tmp_path / "semantic_model.json").write_text(
+            json.dumps(
+                {
+                    "name": "Sales Model",
+                    "tables": [{"name": "Sales"}],
+                    "measures": [{"name": "Revenue", "expression": "SUM(Sales[Amount])"}],
+                    "columns": [{"table": "Sales", "name": "Amount"}],
+                    "relationships": [{"name": "Sales_Date", "isActive": True}],
+                    "roles": [{"name": "RLS_Sales"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        catalog = {"items": [{"Type": "PowerBIReport", "Name": "Sales"}]}
+        validator = MigrationValidator(mock_pbi_client)
+        result = validator.validate(catalog, "ws-001", str(tmp_path))
+
+        role_rule = next(r for r in result["semantic_bpa"]["rules"] if r.get("id") == "role_membership_coverage")
+        assert role_rule["status"] == "WARN"
+        assert "RLS_Sales" in role_rule.get("roles_without_members", [])
+
+    def test_semantic_bpa_score_is_deterministic_for_same_snapshot(self, mock_pbi_client, tmp_path):
+        mock_pbi_client.list_reports.return_value = [{"id": "r1"}]
+        mock_pbi_client.list_datasets.return_value = []
+        mock_pbi_client.list_workspace_users.return_value = [{"user": "a"}, {"user": "b"}]
+
+        (tmp_path / "model_snapshot.json").write_text(
+            json.dumps(
+                {
+                    "name": "Deterministic",
+                    "tables": [{"name": "Sales"}],
+                    "measures": [{"name": "Revenue", "expression": "SUM(Sales[Amount])"}],
+                    "columns": [{"table": "Sales", "name": "Amount"}],
+                    "relationships": [{"name": "Sales_Date", "isActive": True}],
+                    "roles": [{"name": "RLS_Sales", "members": ["group://finance-readers"]}],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        catalog = {"items": [{"Type": "PowerBIReport", "Name": "Sales"}]}
+        validator = MigrationValidator(mock_pbi_client)
+        result_a = validator.validate(catalog, "ws-001", str(tmp_path))
+        result_b = validator.validate(catalog, "ws-001", str(tmp_path))
+
+        assert result_a["semantic_bpa"]["score"] == result_b["semantic_bpa"]["score"]
 
     def test_semantic_capacity_warn_without_capacity_id(self, mock_pbi_client, tmp_path):
         mock_pbi_client.list_reports.return_value = [{"id": "r1"}]

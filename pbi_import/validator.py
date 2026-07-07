@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from pbi_import.model_snapshot import ModelSnapshotLoader
 from pbi_import.semantic_bpa import SemanticModelBPA
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,8 @@ class MigrationValidator:
             "issues": [],
             "model_source": model_source,
         }
+
+        self._persist_model_snapshot(results, converted_dir)
 
         # Determine overall status
         for key in (
@@ -451,13 +454,44 @@ class MigrationValidator:
         for candidate in candidates:
             if candidate.exists():
                 return str(candidate)
+
+        pbix_dir = base / "powerbi"
+        if pbix_dir.exists():
+            pbix_files = sorted(pbix_dir.glob("*.pbix"))
+            if pbix_files:
+                return str(pbix_files[0])
+
         for candidate in base.rglob("model_snapshot.json"):
             if candidate.is_file():
                 return str(candidate)
         for candidate in base.rglob("semantic_model.json"):
             if candidate.is_file():
                 return str(candidate)
+        for candidate in base.rglob("*.pbix"):
+            if candidate.is_file():
+                return str(candidate)
         return None
+
+    @staticmethod
+    def _persist_model_snapshot(results: dict[str, Any], converted_dir: str) -> None:
+        semantic = results.get("semantic_bpa", {})
+        if not isinstance(semantic, dict):
+            return
+
+        model_snapshot = semantic.get("model_snapshot")
+        model_source = results.get("model_source")
+        if not model_source:
+            return
+
+        if not isinstance(model_snapshot, dict):
+            model_snapshot = ModelSnapshotLoader().load(model_source)
+
+        out = Path(converted_dir) / "model_snapshot.normalized.json"
+        try:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps(model_snapshot, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Could not persist normalized model snapshot to %s: %s", out, exc)
 
 
 def _esc(text: Any) -> str:

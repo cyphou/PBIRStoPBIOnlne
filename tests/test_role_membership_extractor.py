@@ -103,3 +103,23 @@ def test_save_json_and_csv(tmp_path):
     rows = _read_csv(csv_path)
     assert len(rows) == 1
     assert rows[0]["role_name"] == "RLS_Sales"
+
+
+def test_extract_includes_model_snapshot_role_principals_and_gaps():
+    permissions = {"system_policies": [], "item_policies": []}
+    security = {"effective_permissions": []}
+    model_snapshot = {
+        "available": True,
+        "roles": [
+            {"name": "RLS_Finance", "members": ["CONTOSO\\FinanceReaders"]},
+            {"name": "OLS_Sensitive"},
+        ],
+    }
+
+    payload = RoleMembershipExtractor().extract(permissions, security, model_snapshot=model_snapshot)
+
+    rows = payload["rows"]
+    model_rows = [r for r in rows if r["source"].startswith("model_snapshot.roles")]
+    assert any(r["role_name"] == "RLS_Finance" and r["account"] == "CONTOSO\\FinanceReaders" for r in model_rows)
+    assert any(r["role_name"] == "OLS_Sensitive" and r["source"] == "model_snapshot.roles.missing_principals" for r in model_rows)
+    assert "OLS_Sensitive" in payload["summary"]["model_roles_without_members"]

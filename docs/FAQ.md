@@ -18,6 +18,18 @@ Yes. The import phase uses "CreateOrOverwrite" mode — re-running updates exist
 
 **Python 3.12+**. No external packages needed for core migration (assessment, export, conversion).
 
+### Does PBIRS authentication go through PowerShell CLI?
+
+No. PowerShell is only used to run the command on Windows.
+
+PBIRS authentication is implemented in the Python client and supports:
+
+- Bearer token (`--token`)
+- Basic auth (`--username` + `--password`)
+- Windows auth (`--use-windows-auth`, NTLM/Kerberos)
+
+So the auth protocol is handled by the tool, not by PowerShell.
+
 ### Do I need to install external packages?
 
 Only for the **import/deploy phase**: `azure-identity`, `requests`, `msal`. The core engine runs entirely on Python's standard library.

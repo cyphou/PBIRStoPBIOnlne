@@ -87,14 +87,14 @@ class SemanticModelBPA:
         rules.append(self._rule("catalog_has_reports", len(report_like_items) > 0, 20, "Catalog includes report artifacts"))
 
         if model_snapshot.get("available"):
-            model_score = self._score_model_snapshot(model_snapshot)
             rules.append({
                 "id": "model_snapshot_present",
-                "status": "PASS" if model_score >= 80 else "WARN" if model_score >= 60 else "FAIL",
-                "weight": 25,
+                "status": "PASS",
+                "weight": 10,
                 "message": f"Model snapshot available from {model_snapshot.get('source', '')}",
-                "model_score": model_score,
             })
+            rules.extend(self._build_model_rules(model_snapshot))
+
             dax_results = DAXHealthChecker().check(model_snapshot.get("measures", []))
             dax_summary = DAXHealthChecker().summary(dax_results)
             critical = dax_summary.get("by_health", {}).get("critical", 0)
@@ -122,7 +122,145 @@ class SemanticModelBPA:
             "message": f"Semantic BPA score: {score}/100",
             "rules": rules,
             "model_snapshot": model_snapshot,
+            "evaluation_mode": "model_based" if model_snapshot.get("available") else "heuristic",
         }
+
+    @staticmethod
+    def _build_model_rules(model_snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+        tables = model_snapshot.get("tables", []) if isinstance(model_snapshot.get("tables", []), list) else []
+        measures = model_snapshot.get("measures", []) if isinstance(model_snapshot.get("measures", []), list) else []
+        columns = model_snapshot.get("columns", []) if isinstance(model_snapshot.get("columns", []), list) else []
+        relationships = model_snapshot.get("relationships", []) if isinstance(model_snapshot.get("relationships", []), list) else []
+        calc_groups = model_snapshot.get("calculation_groups", []) if isinstance(model_snapshot.get("calculation_groups", []), list) else []
+        annotations = model_snapshot.get("annotations", []) if isinstance(model_snapshot.get("annotations", []), list) else []
+        roles = model_snapshot.get("roles", []) if isinstance(model_snapshot.get("roles", []), list) else []
+
+        rules: list[dict[str, Any]] = [
+            {
+                "id": "model_tables_present",
+                "status": "PASS" if len(tables) > 0 else "FAIL",
+                "weight": 15,
+                "message": f"Model contains {len(tables)} table(s)",
+            },
+            {
+                "id": "model_measures_present",
+                "status": "PASS" if len(measures) > 0 else "WARN",
+                "weight": 15,
+                "message": f"Model exposes {len(measures)} measure(s)",
+            },
+            {
+                "id": "model_columns_present",
+                "status": "PASS" if len(columns) > 0 else "WARN",
+                "weight": 10,
+                "message": f"Model exposes {len(columns)} column(s)",
+            },
+            {
+                "id": "model_relationships_present",
+                "status": "PASS" if len(relationships) > 0 else "WARN",
+                "weight": 12,
+                "message": f"Model defines {len(relationships)} relationship(s)",
+            },
+            {
+                "id": "model_calculation_groups",
+                "status": "PASS" if len(calc_groups) > 0 else "INFO",
+                "weight": 6,
+                "message": f"Model has {len(calc_groups)} calculation group(s)",
+            },
+            {
+                "id": "model_annotations",
+                "status": "PASS" if len(annotations) > 0 else "INFO",
+                "weight": 4,
+                "message": f"Model has {len(annotations)} annotation(s)",
+            },
+        ]
+
+        inactive = 0
+        for rel in relationships:
+            if not isinstance(rel, dict):
+                continue
+            if rel.get("isActive") is False or str(rel.get("state", "")).lower() == "inactive":
+                inactive += 1
+        if relationships:
+            rules.append(
+                {
+                    "id": "relationship_activity",
+                    "status": "PASS" if inactive == 0 else "WARN",
+                    "weight": 8,
+                    "message": f"{inactive}/{len(relationships)} relationship(s) inactive",
+                }
+            )
+
+        role_details: list[dict[str, Any]] = []
+        roles_without_members: list[str] = []
+        for role in roles:
+            if not isinstance(role, dict):
+                continue
+            role_name = str(role.get("name") or role.get("Name") or "<unnamed>")
+            members = SemanticModelBPA._extract_role_members(role)
+            role_details.append({"name": role_name, "member_count": len(members), "members": members})
+            if len(members) == 0:
+                roles_without_members.append(role_name)
+
+        rules.append(
+            {
+                "id": "role_definitions_present",
+                "status": "PASS" if len(roles) > 0 else "INFO",
+                "weight": 8,
+                "message": f"Model defines {len(roles)} role(s)",
+                "role_count": len(roles),
+            }
+        )
+        if len(roles) > 0:
+            rules.append(
+                {
+                    "id": "role_membership_coverage",
+                    "status": "PASS" if len(roles_without_members) == 0 else "WARN",
+                    "weight": 12,
+                    "message": (
+                        "All model roles include principals"
+                        if len(roles_without_members) == 0
+                        else "Roles missing principals: " + ", ".join(roles_without_members[:8])
+                    ),
+                    "roles_without_members": roles_without_members,
+                    "roles": role_details,
+                }
+            )
+
+        return rules
+
+    @staticmethod
+    def _extract_role_members(role: dict[str, Any]) -> list[str]:
+        candidates = (
+            role.get("members"),
+            role.get("principals"),
+            role.get("modelPermissionMembers"),
+            role.get("Members"),
+            role.get("Principals"),
+        )
+
+        members: list[str] = []
+        for candidate in candidates:
+            if not isinstance(candidate, list):
+                continue
+            for item in candidate:
+                if isinstance(item, str) and item.strip():
+                    members.append(item.strip())
+                    continue
+                if isinstance(item, dict):
+                    for key in ("name", "principal", "memberName", "id", "objectId", "user"):
+                        val = item.get(key)
+                        if isinstance(val, str) and val.strip():
+                            members.append(val.strip())
+                            break
+        # Preserve order while de-duplicating.
+        seen: set[str] = set()
+        out: list[str] = []
+        for m in members:
+            if m in seen:
+                continue
+            seen.add(m)
+            out.append(m)
+        return out
 
     @staticmethod
     def evaluate_capacity_merge(catalog: dict[str, Any], capacity_id: str | None = None) -> dict[str, Any]:
@@ -182,19 +320,6 @@ class SemanticModelBPA:
             elif status == "INFO":
                 earned += w
         return int(round((earned / total) * 100))
-
-    @staticmethod
-    def _score_model_snapshot(model_snapshot: dict[str, Any]) -> int:
-        measures = model_snapshot.get("measures", [])
-        columns = model_snapshot.get("columns", [])
-        relationships = model_snapshot.get("relationships", [])
-        roles = model_snapshot.get("roles", [])
-        score = 100
-        score -= min(30, max(0, 20 - len(measures)))
-        score -= min(20, max(0, 10 - len(relationships)) * 2)
-        score -= min(10, max(0, 5 - len(roles)) * 2)
-        score -= min(10, max(0, 25 - len(columns)) // 3)
-        return max(0, min(100, score))
 
     @staticmethod
     def _count_legacy_providers(shared: list[dict[str, Any]] | list[Any], embedded: list[dict[str, Any]] | list[Any]) -> int:

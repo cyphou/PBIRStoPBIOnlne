@@ -125,6 +125,34 @@ Review `artifacts/validation/migration_report.html`.
 
 ## 🔄 Authentication Methods
 
+### PBIRS Source Authentication
+
+PBIRS source auth is executed by the Python PBIRS client, not by PowerShell itself.
+
+- **Bearer token**: pass `--token`
+- **Basic auth**: pass `--username` and `--password`
+- **Windows integrated auth**: pass `--use-windows-auth` (NTLM/Kerberos via `requests-ntlm`)
+
+PowerShell is only the command host on Windows. It does not provide the PBIRS auth protocol.
+
+Examples:
+
+```powershell
+# Windows integrated (recommended on domain-joined hosts)
+python migrate.py --server https://pbirs.contoso.com/reports --assess --use-windows-auth
+
+# Bearer token
+python migrate.py --server https://pbirs.contoso.com/reports --assess --token "$env:PBIRS_TOKEN"
+
+# Basic auth with environment variables
+python migrate.py --server https://pbirs.contoso.com/reports --assess --username "$env:PBIRS_USERNAME" --password "$env:PBIRS_PASSWORD"
+```
+
+Notes:
+
+- Avoid putting plain passwords directly in command history.
+- `--use-windows-auth` requires `requests` and `requests-ntlm` installed.
+
 ### Service Principal (Recommended for CI/CD)
 
 Set `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` in `.env`.

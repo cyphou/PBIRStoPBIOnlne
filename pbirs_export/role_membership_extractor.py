@@ -15,7 +15,12 @@ from typing import Any
 class RoleMembershipExtractor:
     """Extract role memberships across item and effective permission scopes."""
 
-    def extract(self, permissions: dict[str, Any], security: dict[str, Any]) -> dict[str, Any]:
+    def extract(
+        self,
+        permissions: dict[str, Any],
+        security: dict[str, Any],
+        model_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         rows: list[dict[str, str]] = []
 
         # Item-level policies from permission extractor.
@@ -102,6 +107,9 @@ class RoleMembershipExtractor:
                 }
             )
 
+        model_rows, roles_without_members = self._rows_from_model_snapshot(model_snapshot)
+        rows.extend(model_rows)
+
         deduped = self._dedupe(rows)
         security_counts = {
             "RLS": sum(1 for r in deduped if r["security_type"] == "RLS"),
@@ -115,6 +123,14 @@ class RoleMembershipExtractor:
                 "unique_roles": len({r["role_name"] for r in deduped}),
                 "unique_accounts": len({r["account"] for r in deduped}),
                 "by_security_type": security_counts,
+                "model_roles_detected": len(
+                    {
+                        r.get("role_name", "")
+                        for r in deduped
+                        if str(r.get("source", "")).startswith("model_snapshot.roles")
+                    }
+                ),
+                "model_roles_without_members": sorted(roles_without_members),
             },
         }
 
@@ -207,4 +223,95 @@ class RoleMembershipExtractor:
                 continue
             seen.add(key)
             out.append(row)
+        return out
+
+    def _rows_from_model_snapshot(
+        self,
+        model_snapshot: dict[str, Any] | None,
+    ) -> tuple[list[dict[str, str]], set[str]]:
+        if not isinstance(model_snapshot, dict):
+            return [], set()
+        if not model_snapshot.get("available"):
+            return [], set()
+
+        roles = model_snapshot.get("roles", [])
+        if not isinstance(roles, list):
+            return [], set()
+
+        rows: list[dict[str, str]] = []
+        roles_without_members: set[str] = set()
+        for role in roles:
+            if not isinstance(role, dict):
+                continue
+            role_name = str(role.get("name") or role.get("Name") or "").strip()
+            if not role_name:
+                continue
+
+            members = self._extract_role_members(role)
+            if not members:
+                roles_without_members.add(role_name)
+                rows.append(
+                    {
+                        "security_type": self._classify_security_type(role_name),
+                        "role_name": role_name,
+                        "account": "",
+                        "account_type": "",
+                        "domain": "",
+                        "scope": "model_role",
+                        "item_path": "[Model]",
+                        "item_name": "[SemanticModel]",
+                        "item_type": "SemanticModel",
+                        "source": "model_snapshot.roles.missing_principals",
+                    }
+                )
+                continue
+
+            for principal in members:
+                principal_meta = self._principal_meta(principal)
+                rows.append(
+                    {
+                        "security_type": self._classify_security_type(role_name),
+                        "role_name": role_name,
+                        "account": principal,
+                        "account_type": principal_meta["account_type"],
+                        "domain": principal_meta["domain"],
+                        "scope": "model_role",
+                        "item_path": "[Model]",
+                        "item_name": "[SemanticModel]",
+                        "item_type": "SemanticModel",
+                        "source": "model_snapshot.roles",
+                    }
+                )
+
+        return rows, roles_without_members
+
+    @staticmethod
+    def _extract_role_members(role: dict[str, Any]) -> list[str]:
+        candidates = (
+            role.get("members"),
+            role.get("principals"),
+            role.get("modelPermissionMembers"),
+            role.get("Members"),
+            role.get("Principals"),
+        )
+
+        out: list[str] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            if not isinstance(candidate, list):
+                continue
+            for item in candidate:
+                val = ""
+                if isinstance(item, str):
+                    val = item.strip()
+                elif isinstance(item, dict):
+                    for key in ("name", "principal", "memberName", "id", "objectId", "user"):
+                        v = item.get(key)
+                        if isinstance(v, str) and v.strip():
+                            val = v.strip()
+                            break
+                if not val or val in seen:
+                    continue
+                seen.add(val)
+                out.append(val)
         return out
