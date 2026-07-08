@@ -2,6 +2,14 @@
 
 ## Unreleased — Documentation + PBIRS Upload Diagnostics + Semantic BPA Export Enrichment
 
+### Automated limitation mitigation closure
+- **`pbi_import/subreport_resolver.py`** — now emits cycle groups and an automatic cycle mitigation plan (`retry-cycles`) with deterministic `bootstrap_order`
+- **`pbi_import/paginated_publisher.py`** — now accepts preferred dependency order and performs retry passes for deferred paginated uploads to mitigate circular subreport imports
+- **`pbi_import/pbix_compatibility.py`** — now inspects `Connections` payload and flags `ConnectionType=pbiServiceLive` as a PBIRS upload blocker
+- **`pbi_import/report_publisher.py`** — now auto-skips compatibility-failing PBIX files (including service-live) with structured skip diagnostics instead of hard upload attempts
+- **`migrate.py`** — import phase now wires subreport cycle mitigation plan into paginated publish order/retry behavior
+- **`tests/test_subreport_resolver.py`**, **`tests/test_paginated_publisher.py`**, **`tests/test_report_publisher.py`** — added dedicated regression coverage for cycle mitigation and PBIX incompatibility auto-skip
+
 ### Semantic BPA model-intelligence upgrades
 - **`pbi_import/model_snapshot.py`** — now reads PBIX `DataModelSchema` and normalizes fallback TMDL/XMLA-style tabular JSON payloads (`database.model`, `model.tables`, top-level lists)
 - **`pbi_import/semantic_bpa.py`** — moved to rule-driven model scoring across tables/measures/columns/relationships/calculation groups/annotations, adds explicit role-membership coverage checks and `evaluation_mode` (`model_based` vs `heuristic`)
@@ -13,7 +21,7 @@
 - **`tests/test_cli_smoke.py`** — added export-phase integration coverage for model-role propagation into `rls_ols_role_accounts.json` and `bpa_accounts.json`
 
 ### Documentation refresh
-- **`README.md`** — updated tested metrics (553 tests / 33 test files), added explicit sections for:
+- **`README.md`** — updated tested metrics (558 tests / 37 test files), added explicit sections for:
 	- export artifacts: `rls_ols_role_accounts.*` and `bpa_accounts.*`
 	- semantic model snapshot usage (`model_snapshot.json`)
 	- PBIRS upload diagnostics workflow and service-live incompatibility signal
@@ -32,7 +40,7 @@
 - **`scripts/upload_ordered_pbix.ps1`** — now includes compatibility pre-check and clearer skip/failure behavior for known incompatible PBIX payloads
 
 ### Validation
-- Test suite: **554 passed** (`pytest -q`)
+- Test suite: **558 passed** (`pytest -q`)
 
 ## v1.8.0 — Semantic BPA Model Intelligence + Export Role Attachment
 
@@ -42,7 +50,7 @@
 - Export artifacts now include model-role principal attachments and explicit missing-principal gap signals in role/BPA extracts.
 
 ### Validation
-- Test suite baseline: **554 passed** (`pytest -q`)
+- Test suite baseline: **558 passed** (`pytest -q`)
 
 ## v1.7.0 — Sprint 8 — Hardening & PBIRS Gap Closure
 

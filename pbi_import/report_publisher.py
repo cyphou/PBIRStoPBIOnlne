@@ -14,6 +14,14 @@ from pbi_import.large_file_handler import LargeFileHandler
 logger = logging.getLogger(__name__)
 
 
+class IncompatiblePbixError(RuntimeError):
+    """Raised when PBIX compatibility checks mark a file as non-uploadable."""
+
+    def __init__(self, payload: dict[str, Any]):
+        super().__init__(payload.get("reason", "PBIX compatibility check failed"))
+        self.payload = payload
+
+
 class ReportPublisher:
     """Publish Power BI reports to PBI Online workspaces."""
 
@@ -57,6 +65,9 @@ class ReportPublisher:
                 return ("ok", self._publish_report(
                     pbix_file, workspace_id, name_conflict, meta, dry_run
                 ))
+            except IncompatiblePbixError as e:
+                logger.warning("Skipping incompatible PBIX %s: %s", pbix_file.name, e)
+                return ("skip", e.payload)
             except Exception as e:
                 logger.error("Failed to publish %s: %s", pbix_file.name, e)
                 return ("fail", {"name": pbix_file.stem, "error": str(e)})
@@ -66,11 +77,21 @@ class ReportPublisher:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 for status, payload in [f.result() for f in as_completed(
                         pool.submit(_process, f) for f in files)]:
-                    results["success" if status == "ok" else "failed"].append(payload)
+                    if status == "ok":
+                        results["success"].append(payload)
+                    elif status == "skip":
+                        results["skipped"].append(payload)
+                    else:
+                        results["failed"].append(payload)
         else:
             for pbix_file in files:
                 status, payload = _process(pbix_file)
-                results["success" if status == "ok" else "failed"].append(payload)
+                if status == "ok":
+                    results["success"].append(payload)
+                elif status == "skip":
+                    results["skipped"].append(payload)
+                else:
+                    results["failed"].append(payload)
 
         return results
 
@@ -104,9 +125,17 @@ class ReportPublisher:
 
         compatibility = self.compatibility_inspector.inspect(pbix_path)
         if compatibility.get("status") == "FAIL":
-            raise RuntimeError(
-                "PBIX compatibility check failed before upload: "
-                + "; ".join(compatibility.get("issues", [])[:3])
+            reason = "PBIX compatibility check failed before upload"
+            issues = compatibility.get("issues", [])
+            if issues:
+                reason = reason + ": " + "; ".join(issues[:3])
+            raise IncompatiblePbixError(
+                {
+                    "name": display_name,
+                    "status": "skipped",
+                    "reason": reason,
+                    "compatibility": compatibility,
+                }
             )
 
         if compatibility.get("warnings"):

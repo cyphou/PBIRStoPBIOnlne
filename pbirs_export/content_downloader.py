@@ -76,7 +76,15 @@ class ContentDownloader:
         if not downloadable:
             return results
 
-        if dry_run or self.workers <= 1:
+        # requests-ntlm sessions can return intermittent 400/connection errors
+        # when shared across parallel threads; force serial downloads in that mode.
+        force_serial_ntlm = self._is_ntlm_parallel_unsafe()
+        if force_serial_ntlm and self.workers > 1:
+            logger.warning(
+                "NTLM Windows auth detected — forcing sequential downloads to avoid unstable parallel requests"
+            )
+
+        if dry_run or self.workers <= 1 or force_serial_ntlm:
             # Sequential download (dry-run always sequential for stable output)
             self._download_sequential(downloadable, results, dry_run, show_progress)
         else:
@@ -204,6 +212,13 @@ class ContentDownloader:
             "size": size,
             "source_path": item_path,
         }
+
+    def _is_ntlm_parallel_unsafe(self) -> bool:
+        """Return True when the client likely uses a shared NTLM requests session."""
+        return bool(
+            getattr(self.client, "use_windows_auth", False)
+            and getattr(self.client, "_session", None) is not None
+        )
 
     @staticmethod
     def _sanitize_filename(name: str) -> str:

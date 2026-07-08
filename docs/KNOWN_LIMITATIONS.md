@@ -4,7 +4,7 @@ This guide tracks migration limitations, implementation status, and available mi
 
 Reference index: [README.md](README.md)
 
-> **Last updated:** v1.7.0 — Hardening + Gap Closure. Most prior gaps now have explicit bridges.
+> **Last updated:** v1.8.0 — Semantic BPA model-intelligence + export role attachment propagation.
 
 ---
 
@@ -24,7 +24,7 @@ Reference index: [README.md](README.md)
 | **Custom Assemblies** | Not supported in PBI Online | ✅ IMPROVED (v1.2) — `rdl_modifier` auto-strips |
 | **Custom Classes** | Not supported in PBI Online | ✅ IMPROVED (v1.2) — `rdl_modifier` auto-strips |
 | **Subreport Dependencies** | Complex dependency chains | ✅ IMPROVED (v1.2) — `subreport_resolver` computes safe import order |
-| **Circular Subreport Refs** | Cannot resolve circular dependencies | ⚠️ Detected and reported — must refactor manually |
+| **Circular Subreport Refs** | Circular dependencies can break one-pass paginated import order | ✅ IMPROVED (v1.8) — `SubreportResolver` now emits cycle groups + bootstrap order with automatic retry-pass mitigation used by `PaginatedPublisher` |
 
 ## Subscriptions
 
@@ -56,7 +56,7 @@ Reference index: [README.md](README.md)
 | Area | Limitation | Status |
 |------|-----------|--------|
 | **PBI REST API Import Size** | .pbix files > 1 GB require enhanced import API | ✅ IMPROVED (v6.2) — chunked upload path implemented via temporary upload location (`LargeFileHandler` + `ReportPublisher` strategy routing) |
-| **PBIRS PBIX upload acceptance** | Some PBIX files (especially `ConnectionType=pbiServiceLive`) open in Desktop RS but are rejected by PBIRS upload with HTTP 422 | ⚠️ Partial mitigation — use `scripts/inspect_pbix_metadata.ps1`, `scripts/probe_detailed_error_iwr.ps1`, and `scripts/upload_ordered_pbix.ps1` pre-check to detect and skip incompatible files early |
+| **PBIRS PBIX upload acceptance** | Some PBIX files (especially `ConnectionType=pbiServiceLive`) open in Desktop RS but are rejected by PBIRS upload with HTTP 422 | ✅ IMPROVED (v1.8) — compatibility checks now auto-detect service-live risk and `ReportPublisher` skips incompatible PBIX files before upload with explicit diagnostics |
 | **Concurrent Imports** | PBI Online has throttling limits | ✅ IMPROVED (v1.1) — parallel downloads respect rate limits |
 | **Rate Limiting** | PBI REST API enforces rate limits | ✅ Handled — retry-after headers respected |
 | **PBIRS API Coverage** | ~90% of metadata available via REST API | ✅ IMPROVED (v6.2) — optional DB bridges for data-driven queries and security inheritance (`--allow-db-query-bridge`, `--security-db-assist`) |

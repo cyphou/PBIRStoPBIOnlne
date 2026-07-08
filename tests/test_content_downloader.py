@@ -88,3 +88,14 @@ class TestContentDownloaderParallel:
         written = list(tmp_path.rglob("*"))
         files = [f for f in written if f.is_file() and f.name != ".checkpoint.json"]
         assert len(files) == 3
+
+    def test_ntlm_forces_sequential_even_with_parallel_workers(self, mock_client, catalog_3_items, tmp_path):
+        mock_client.use_windows_auth = True
+        mock_client._session = object()
+        dl = ContentDownloader(mock_client, str(tmp_path), workers=4)
+
+        with patch.object(dl, "_download_sequential") as seq_mock, patch.object(dl, "_download_parallel") as par_mock:
+            dl.download_all(catalog_3_items, show_progress=False)
+
+        seq_mock.assert_called_once()
+        par_mock.assert_not_called()

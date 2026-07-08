@@ -23,6 +23,8 @@ class PaginatedPublisher:
         workspace_id: str,
         dry_run: bool = False,
         workers: int = 1,
+        preferred_order: list[str] | None = None,
+        retry_failed_passes: int = 0,
     ) -> dict:
         """Publish all paginated reports from converted directory."""
         rdl_dir = Path(converted_dir) / "paginated"
@@ -45,17 +47,67 @@ class PaginatedPublisher:
                 return ("fail", {"name": rdl_file.stem, "error": str(e)})
 
         files = list(rdl_dir.glob("*.rdl"))
-        if workers > 1 and len(files) > 1:
+        ordered_files = self._apply_preferred_order(files, preferred_order)
+        max_passes = max(0, int(retry_failed_passes or 0))
+
+        if preferred_order and workers > 1:
+            logger.info("Preferred subreport order supplied; forcing serial paginated publish")
+            workers = 1
+
+        if workers > 1 and len(ordered_files) > 1:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 for status, payload in [f.result() for f in as_completed(
-                        pool.submit(_process, f) for f in files)]:
+                        pool.submit(_process, f) for f in ordered_files)]:
                     results["success" if status == "ok" else "failed"].append(payload)
         else:
-            for rdl_file in files:
-                status, payload = _process(rdl_file)
-                results["success" if status == "ok" else "failed"].append(payload)
+            pending = ordered_files
+            pass_index = 0
+            while pending:
+                next_pending: list[Path] = []
+                failures_this_pass: list[dict[str, Any]] = []
+                for rdl_file in pending:
+                    status, payload = _process(rdl_file)
+                    if status == "ok":
+                        results["success"].append(payload)
+                    else:
+                        failures_this_pass.append(payload)
+                        next_pending.append(rdl_file)
+
+                if not next_pending:
+                    break
+
+                if pass_index >= max_passes:
+                    results["failed"].extend(failures_this_pass)
+                    break
+
+                logger.warning(
+                    "Paginated publish retry pass %d/%d for %d deferred item(s)",
+                    pass_index + 1,
+                    max_passes,
+                    len(next_pending),
+                )
+                pending = next_pending
+                pass_index += 1
 
         return results
+
+    @staticmethod
+    def _apply_preferred_order(files: list[Path], preferred_order: list[str] | None) -> list[Path]:
+        """Order files by a dependency plan, then append remaining files deterministically."""
+        if not files:
+            return []
+
+        remaining_by_name = {f.stem.lower(): f for f in files}
+        ordered: list[Path] = []
+
+        for entry in preferred_order or []:
+            key = Path(str(entry)).name.lower()
+            matched = remaining_by_name.pop(key, None)
+            if matched is not None:
+                ordered.append(matched)
+
+        ordered.extend(sorted(remaining_by_name.values(), key=lambda p: p.name.lower()))
+        return ordered
 
     def _publish_rdl(
         self,

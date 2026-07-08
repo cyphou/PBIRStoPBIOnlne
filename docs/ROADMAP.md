@@ -157,6 +157,7 @@ Focus: make limitation workarounds safe and operational by default.
 - [ ] Promote large-file and DB bridge features from opt-in to default-on when prerequisites are met
 - [x] Add compatibility matrix command (`--capability-report`) to print what migration features are active for the current environment
 - [x] Add PBIRS upload diagnostics and compatibility pre-check scripts for Desktop RS local publishing workflows (`probe_detailed_error_iwr`, `inspect_pbix_metadata`, `upload_ordered_pbix` pre-check)
+- [x] Add automated PBIX incompatibility skip path in Python publish flow (`PbixCompatibilityInspector` + `ReportPublisher`) for known 422 blockers
 - [ ] Add recovery playbooks in generated artifacts for partial-failure scenarios
 - [ ] Add stress tests for 10k+ item catalogs with mixed large-file import workloads
 
@@ -170,10 +171,15 @@ Focus: make limitation workarounds safe and operational by default.
 
 Release closes when all are true:
 
-- [ ] `KNOWN_LIMITATIONS.md` has no remaining ❌ entries for core migration path
-- [ ] `KNOWN_LIMITATIONS.md` has no ⚠️ entries without an automated mitigation path
-- [ ] Test suite includes dedicated regression coverage for each formerly open limitation
-- [ ] README "Capabilities" and limitations status are fully consistent
+- [x] `KNOWN_LIMITATIONS.md` has no remaining ❌ entries for core migration path
+- [x] `KNOWN_LIMITATIONS.md` has no ⚠️ entries without an automated mitigation path
+- [x] Test suite includes dedicated regression coverage for each formerly open limitation
+- [x] README "Capabilities" and limitations status are fully consistent
+
+Current status (v1.8.0):
+- Core path has no ❌ entries; prior ⚠️ blockers (`Circular Subreport Refs`, `PBIRS PBIX upload acceptance`) now have automated mitigation paths.
+- Regression coverage includes dedicated tests for cycle mitigation planning/retry behavior and PBIX service-live incompatibility auto-skip.
+- README and limitations metadata are aligned to the current test baseline and implemented mitigation behavior.
 
 ## 🎯 v6.5 — Real Semantic BPA (Next)
 

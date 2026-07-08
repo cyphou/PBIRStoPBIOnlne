@@ -39,8 +39,16 @@ class SubreportResolver:
 
             {
                 "dependency_graph": {parent_path: [child_path, ...]},
-                "import_order": [path, ...],   # leaves first
-                "circular": [path, ...],        # items in cycles
+                "import_order": [path, ...],     # leaves first
+                "ordered_paths": [path, ...],    # alias for legacy callers
+                "circular": [path, ...],         # items in cycles
+                "cycle_groups": [[path, ...]],   # strongly connected groups
+                "cycle_mitigation": {
+                    "strategy": "retry-cycles",
+                    "retry_passes": 2,
+                    "bootstrap_order": [path, ...],
+                    "groups": [[path, ...]],
+                },
                 "orphan_refs": [{...}],          # references to missing reports
             }
         """
@@ -69,6 +77,8 @@ class SubreportResolver:
                 graph[item_path] = deps
 
         import_order, circular = self._topological_sort(graph)
+        cycle_groups = self._group_cycles(graph, circular)
+        bootstrap_order = self._build_bootstrap_order(import_order, cycle_groups)
 
         logger.info(
             "Subreport resolution: %d dependencies, %d import order, %d circular, %d orphan refs",
@@ -78,7 +88,15 @@ class SubreportResolver:
         return {
             "dependency_graph": graph,
             "import_order": import_order,
+            "ordered_paths": import_order,
             "circular": circular,
+            "cycle_groups": cycle_groups,
+            "cycle_mitigation": {
+                "strategy": "retry-cycles",
+                "retry_passes": 2,
+                "bootstrap_order": bootstrap_order,
+                "groups": cycle_groups,
+            },
             "orphan_refs": orphan_refs,
         }
 
@@ -200,3 +218,89 @@ class SubreportResolver:
 
         circular = [n for n in all_nodes if n not in set(order)]
         return order, circular
+
+    @staticmethod
+    def _group_cycles(graph: dict[str, list[str]], circular_nodes: list[str]) -> list[list[str]]:
+        """Group circular nodes into strongly connected components."""
+        if not circular_nodes:
+            return []
+
+        circular_set = set(circular_nodes)
+        subgraph: dict[str, list[str]] = {
+            node: [child for child in graph.get(node, []) if child in circular_set]
+            for node in circular_set
+        }
+        groups = SubreportResolver._strongly_connected_components(subgraph)
+
+        # Keep only true cycles (>1 node) or explicit self-loops.
+        cycle_groups: list[list[str]] = []
+        for group in groups:
+            if len(group) > 1:
+                cycle_groups.append(sorted(group))
+                continue
+            node = group[0]
+            if node in subgraph.get(node, []):
+                cycle_groups.append([node])
+
+        cycle_groups.sort(key=lambda g: g[0])
+        return cycle_groups
+
+    @staticmethod
+    def _build_bootstrap_order(import_order: list[str], cycle_groups: list[list[str]]) -> list[str]:
+        """Build a deterministic publish order that appends cycle groups for retry passes."""
+        seen: set[str] = set()
+        ordered: list[str] = []
+
+        for path in import_order:
+            if path not in seen:
+                ordered.append(path)
+                seen.add(path)
+
+        for group in cycle_groups:
+            for path in group:
+                if path not in seen:
+                    ordered.append(path)
+                    seen.add(path)
+
+        return ordered
+
+    @staticmethod
+    def _strongly_connected_components(graph: dict[str, list[str]]) -> list[list[str]]:
+        """Return strongly connected components using Tarjan's algorithm."""
+        index = 0
+        stack: list[str] = []
+        on_stack: set[str] = set()
+        index_map: dict[str, int] = {}
+        lowlink_map: dict[str, int] = {}
+        components: list[list[str]] = []
+
+        def _visit(node: str) -> None:
+            nonlocal index
+            index_map[node] = index
+            lowlink_map[node] = index
+            index += 1
+            stack.append(node)
+            on_stack.add(node)
+
+            for neighbour in graph.get(node, []):
+                if neighbour not in index_map:
+                    _visit(neighbour)
+                    lowlink_map[node] = min(lowlink_map[node], lowlink_map[neighbour])
+                elif neighbour in on_stack:
+                    lowlink_map[node] = min(lowlink_map[node], index_map[neighbour])
+
+            if lowlink_map[node] == index_map[node]:
+                component: list[str] = []
+                while True:
+                    member = stack.pop()
+                    on_stack.remove(member)
+                    component.append(member)
+                    if member == node:
+                        break
+                components.append(component)
+
+        for node in graph:
+            if node not in index_map:
+                _visit(node)
+
+        return components

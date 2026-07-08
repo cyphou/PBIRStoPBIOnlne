@@ -1,6 +1,7 @@
 """Tests for ReportPublisher."""
 
 import zipfile
+import json
 from pathlib import Path
 
 import pytest
@@ -8,14 +9,14 @@ import pytest
 from pbi_import.report_publisher import ReportPublisher
 
 
-def _write_valid_pbix(path: Path, display_name: str = "Report") -> None:
+def _write_valid_pbix(path: Path, display_name: str = "Report", connections_payload: dict | None = None) -> None:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("Version", "1.0")
         zf.writestr("[Content_Types].xml", "<Types />")
         zf.writestr("Report/Layout", '{"sections":[{"displayName":"%s"}]}' % display_name)
         zf.writestr("Settings", '{"Version":1}')
         zf.writestr("Metadata", '{"Version":3}')
-        zf.writestr("Connections", '{"Version":1,"Connections":[]}')
+        zf.writestr("Connections", json.dumps(connections_payload or {"Version": 1, "Connections": []}))
         zf.writestr("SecurityBindings", "")
         zf.writestr("DiagramLayout", '{"version":"1.0"}')
         zf.writestr("docProps/custom.xml", "<Properties><property name='PBIDesktopVersion'><vt:lpwstr>2.125.816.0</vt:lpwstr></property></Properties>")
@@ -120,3 +121,24 @@ class TestReportPublisher:
         assert by_name["mid"]["strategy"] == "standard"
         # >1GB: large
         assert by_name["large"]["strategy"] == "large"
+
+    def test_publish_skips_service_live_pbix_before_upload(self, mock_pbi_client, tmp_path):
+        powerbi_dir = tmp_path / "powerbi"
+        powerbi_dir.mkdir()
+        _write_valid_pbix(
+            powerbi_dir / "Live.pbix",
+            "Live",
+            connections_payload={
+                "Version": 1,
+                "Connections": [{"ConnectionType": "pbiServiceLive"}],
+            },
+        )
+
+        publisher = ReportPublisher(mock_pbi_client)
+        result = publisher.publish_all(str(tmp_path), "ws-001")
+
+        assert len(result["success"]) == 0
+        assert len(result["failed"]) == 0
+        assert len(result["skipped"]) == 1
+        assert "pbiServiceLive" in json.dumps(result["skipped"][0].get("compatibility", {}))
+        mock_pbi_client.import_pbix.assert_not_called()

@@ -329,7 +329,7 @@ def _run_conversion(args: argparse.Namespace, logger: logging.Logger) -> int:
         with open(output_dir / "subreport_dependencies.json", "w", encoding="utf-8") as f:
             json.dump(dep_result, f, indent=2, default=str)
         logger.info("Subreport resolution: %d ordered, %d circular",
-                    len(dep_result.get("ordered_paths", [])),
+                    len(dep_result.get("ordered_paths", dep_result.get("import_order", []))),
                     len(dep_result.get("circular", [])))
 
     # Base content conversion
@@ -579,13 +579,39 @@ def _run_import(args: argparse.Namespace, logger: logging.Logger) -> int:
         target_dir = target.get("input_dir", str(input_dir))
         logger.info("Publishing to workspace %s (%s)", target.get("workspace_name", ws_id), ws_id)
 
+        subreport_plan: dict[str, Any] = {}
+        dep_path = Path(target_dir) / "subreport_dependencies.json"
+        if dep_path.is_file():
+            loaded_dep = _load_json(dep_path, default={})
+            if isinstance(loaded_dep, dict):
+                subreport_plan = loaded_dep
+
         for kind, cls in (("datasets", DatasetPublisher),
                           ("reports", ReportPublisher),
                           ("paginated", PaginatedPublisher)):
             chunk = _run(
                 f"{kind} publish ({ws_id})",
-                lambda c=cls, w=ws_id, d=target_dir: c(pbi_client).publish_all(
-                    d, w, dry_run=dry_run, workers=workers
+                lambda c=cls, w=ws_id, d=target_dir, k=kind, plan=subreport_plan: (
+                    c(pbi_client).publish_all(
+                        d,
+                        w,
+                        dry_run=dry_run,
+                        workers=workers,
+                        preferred_order=(
+                            plan.get("cycle_mitigation", {}).get("bootstrap_order")
+                            or plan.get("ordered_paths")
+                            or plan.get("import_order")
+                            if k == "paginated"
+                            else None
+                        ),
+                        retry_failed_passes=(
+                            int(plan.get("cycle_mitigation", {}).get("retry_passes", 0))
+                            if k == "paginated"
+                            else 0
+                        ),
+                    )
+                    if k == "paginated"
+                    else c(pbi_client).publish_all(d, w, dry_run=dry_run, workers=workers)
                 ),
             )
             publish_results[kind]["success"].extend(chunk.get("success", []))

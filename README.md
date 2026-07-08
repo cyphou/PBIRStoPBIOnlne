@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | 🏷️ **Version** | 1.8.0 |
-| ✅ **Tests** | 554 passed · 33 test files |
+| ✅ **Tests** | 558 passed · 37 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -327,10 +327,9 @@ python migrate.py --server https://pbirs.company.com/reports --assess --username
 
 Most historical gaps now have mitigation paths. Remaining high-priority limitations are:
 
-- **Large PBIX import (> 1 GB):** enhanced import path not fully implemented yet
 - **Data-driven subscription query extraction:** PBIRS REST API does not expose query text; DB bridge required for full fidelity
 - **PBIRS metadata edge cases:** some security inheritance details require DB-assisted resolution
-- **PBIRS PBIX upload acceptance:** PBIRS rejects some Desktop-openable PBIX packages (notably service-live reports) with HTTP 422
+- **Recovery playbooks for partial failures:** generated runbook artifacts are still being expanded
 
 See:
 - [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)
@@ -391,6 +390,11 @@ When PBIRS upload returns HTTP 422 even though the report opens in Power BI Desk
 - `scripts/upload_ordered_pbix.ps1`
     - Adds compatibility pre-check and skips known-incompatible files with explicit reason.
 
+Built-in import behavior:
+
+- `ReportPublisher` runs PBIX compatibility inspection before upload.
+- Files flagged as incompatible (including `ConnectionType=pbiServiceLive`) are automatically skipped with machine-readable diagnostics in publish results.
+
 Typical rejection pattern:
 
 - `Connections.ConnectionType = pbiServiceLive`
@@ -447,7 +451,7 @@ PBIReporttoPBIOnline/
 │       ├── pbi_client.py           #     PBI REST API wrapper
 │       ├── fabric_client.py        #     Fabric REST API wrapper
 │       └── config.py               #     Environment configuration
-├── tests/                          # 513 tests across 24 files
+├── tests/                          # 558 tests across 37 files
 ├── scripts/                        # Utility scripts
 ├── docs/                           # Full documentation suite
 └── examples/                       # Example configurations

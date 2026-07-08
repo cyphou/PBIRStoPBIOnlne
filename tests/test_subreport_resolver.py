@@ -39,6 +39,22 @@ class TestSubreportResolver:
         resolver = SubreportResolver(catalog)
         result = resolver.resolve()
         assert len(result["circular"]) > 0
+        assert result["ordered_paths"] == result["import_order"]
+        assert result["cycle_mitigation"]["strategy"] == "retry-cycles"
+        assert result["cycle_mitigation"]["retry_passes"] == 2
+        assert any(set(group) == {"/Reports/A", "/Reports/B"} for group in result["cycle_groups"])
+        for node in result["circular"]:
+            assert node in result["cycle_mitigation"]["bootstrap_order"]
+
+    def test_self_cycle_group_detected(self):
+        catalog = _make_catalog([
+            {"Path": "/Reports/Loop", "Type": "Report", "subreports": ["Loop"]},
+        ])
+        result = SubreportResolver(catalog).resolve()
+
+        assert result["circular"] == ["/Reports/Loop"]
+        assert result["cycle_groups"] == [["/Reports/Loop"]]
+        assert result["cycle_mitigation"]["bootstrap_order"] == ["/Reports/Loop"]
 
     def test_multi_level_dependency(self):
         catalog = _make_catalog([

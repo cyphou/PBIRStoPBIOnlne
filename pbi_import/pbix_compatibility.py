@@ -91,6 +91,21 @@ class PbixCompatibilityInspector:
                     except Exception as exc:
                         result["issues"].append(f"Report/Layout JSON is invalid: {exc}")
 
+                connections_text = self._read_text(archive, "Connections")
+                if connections_text:
+                    try:
+                        connections_payload = json.loads(connections_text)
+                        connection_types = self._extract_connection_types(connections_payload)
+                        if "pbiservicelive" in connection_types:
+                            result["issues"].append(
+                                "Connections contains ConnectionType=pbiServiceLive, which PBIRS commonly rejects with HTTP 422"
+                            )
+                            result["recommendations"].append(
+                                "Skip this PBIX for automated upload and migrate the live-connection dependency manually"
+                            )
+                    except Exception as exc:
+                        result["warnings"].append(f"Connections payload could not be parsed as JSON: {exc}")
+
                 custom_xml = self._read_text(archive, "docProps/custom.xml")
                 if custom_xml:
                     version_hint = self._extract_desktop_version_hint(custom_xml)
@@ -313,6 +328,25 @@ class PbixCompatibilityInspector:
                 if end > idx:
                     return tail[idx:end].strip()
         return "PBIDesktopVersion present"
+
+    @staticmethod
+    def _extract_connection_types(payload: Any) -> set[str]:
+        """Collect all connection type values from a Connections JSON payload."""
+        found: set[str] = set()
+
+        def _walk(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, inner in value.items():
+                    if key.lower() == "connectiontype" and isinstance(inner, str):
+                        found.add(inner.strip().lower())
+                    else:
+                        _walk(inner)
+            elif isinstance(value, list):
+                for inner in value:
+                    _walk(inner)
+
+        _walk(payload)
+        return found
 
     @staticmethod
     def _finalise(result: dict[str, Any]) -> dict[str, Any]:
