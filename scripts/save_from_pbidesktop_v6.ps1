@@ -121,7 +121,7 @@ if ($saveAsWin) {
         Write-Host "Foreground after Browse: '$fgTitle'"
         
         if ($fgTitle -like "*Save*" -or $fgTitle -like "*Enregistrer*") {
-            $savePath = "<USER_HOME>\Desktop\rs_test.pbix"
+            $savePath = Join-Path ([Environment]::GetFolderPath("Desktop")) "rs_test.pbix"
             [System.Windows.Forms.Clipboard]::SetText($savePath)
             [System.Windows.Forms.SendKeys]::SendWait("^a")
             Start-Sleep -Milliseconds 200

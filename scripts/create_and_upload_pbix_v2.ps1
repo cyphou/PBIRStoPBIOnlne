@@ -12,7 +12,12 @@ $apiUrl = "http://localhost/Reports/api/v2.0"
 $outputDir = Join-Path $PSScriptRoot "artifacts\pbix"
 
 # The AS data/backup directory (from msmdsrv.ini)
-$asDataDir = "<USER_HOME>\AppData\Local\Microsoft\Power BI Desktop SSRS\AnalysisServicesWorkspaces\AnalysisServicesWorkspace_eed750da-0ceb-4809-9107-f860d6333e87\Data"
+$workspaceRoot = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "Microsoft\Power BI Desktop SSRS\AnalysisServicesWorkspaces"
+$asDataDir = Get-ChildItem $workspaceRoot -Directory -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    ForEach-Object { Join-Path $_.FullName "Data" } |
+    Where-Object { Test-Path $_ } |
+    Select-Object -First 1
 
 # ─── 1. Load AMO assemblies from SSMS ────────────────────────────
 $amoDir = "C:\Program Files\Microsoft SQL Server Management Studio 22\Release\Common7\IDE"

@@ -10,6 +10,7 @@ Reference: https://learn.microsoft.com/sql/reporting-services/developer/rest-api
 import base64
 import json
 import logging
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,6 +27,14 @@ except ImportError:
     _HAS_NTLM = False
 
 
+class PBIRSAuthenticationError(urllib.error.HTTPError):
+    """PBIRS 401 response with authentication-specific remediation."""
+
+    def __init__(self, error: urllib.error.HTTPError, guidance: str):
+        super().__init__(error.url, error.code, guidance, error.headers, error.fp)
+        self.original_reason = error.reason
+
+
 class PBIRSClient:
     """Client for Power BI Report Server REST API v2.0."""
 
@@ -40,9 +49,9 @@ class PBIRSClient:
         use_windows_auth: bool = False,
     ):
         self.server_url = server_url.rstrip("/")
-        self.username = username
-        self.password = password
-        self.token = token
+        self.username = username or os.environ.get("PBIRS_USERNAME")
+        self.password = password or os.environ.get("PBIRS_PASSWORD")
+        self.token = token or os.environ.get("PBIRS_TOKEN")
         self.use_windows_auth = use_windows_auth
         self._base_url = f"{self.server_url}/api/{self.API_VERSION}"
         self._session_cookie: str | None = None
@@ -124,10 +133,36 @@ class PBIRSClient:
                 return json.loads(content) if content else {}
         except urllib.error.HTTPError as e:
             logger.error("HTTP %d %s: %s %s", e.code, e.reason, method, url)
+            if e.code == 401:
+                raise PBIRSAuthenticationError(e, self._authentication_guidance()) from e
             raise
         except urllib.error.URLError as e:
             logger.error("Connection error: %s — %s", url, e.reason)
             raise
+
+    def _authentication_guidance(self) -> str:
+        """Return a safe remediation message for the configured auth mode."""
+        if self.token:
+            return (
+                "PBIRS authentication failed: the bearer token was rejected. "
+                "Acquire a new token with PBIRS audience/scope and retry --token."
+            )
+        if self.username and self.password:
+            return (
+                "PBIRS authentication failed: the supplied username/password were rejected. "
+                "Verify DOMAIN\\user credentials or use --use-windows-auth."
+            )
+        if self.use_windows_auth:
+            return (
+                "PBIRS Windows authentication failed. Browser-integrated authentication "
+                "does not automatically carry into Python. Supply DOMAIN\\user credentials, "
+                "then retry with --use-windows-auth."
+            )
+        return (
+            "PBIRS requires authentication. The API may work in a browser because the browser "
+            "sends your Windows identity automatically. Retry with --use-windows-auth, "
+            "or provide --token or --username/--password."
+        )
 
     def _request_ntlm(
         self, method: str, url: str, data: dict | None, raw: bool
@@ -140,6 +175,8 @@ class PBIRSClient:
             kwargs["json"] = data
 
         resp = self._session.request(method, url, **kwargs)
+        if resp.status_code == 401:
+            raise PermissionError(self._authentication_guidance())
         resp.raise_for_status()
 
         if raw:

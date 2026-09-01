@@ -51,7 +51,7 @@ if (-not (Test-Path $samplePbix)) {
         
         # Last resort: Find any .pbix file on this machine
         Write-Host "  Searching for existing .pbix files on disk..."
-        $existingPbix = Get-ChildItem "<USER_HOME>" -Filter "*.pbix" -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 1
+        $existingPbix = Get-ChildItem $HOME -Filter "*.pbix" -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($existingPbix) {
             Write-Host "  Found: $($existingPbix.FullName)" -ForegroundColor Green
             Copy-Item $existingPbix.FullName $samplePbix

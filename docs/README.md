@@ -1,6 +1,6 @@
 # Documentation
 
-Current release baseline: **v1.7.0** (see `../CHANGELOG.md` and `ROADMAP.md`).
+Current release baseline: **v1.8.0** (see `../CHANGELOG.md` and `ROADMAP.md`).
 
 ## Guides
 
@@ -14,6 +14,7 @@ Current release baseline: **v1.7.0** (see `../CHANGELOG.md` and `ROADMAP.md`).
 - [PERMISSION_MAPPING_GUIDE.md](PERMISSION_MAPPING_GUIDE.md) - SSRS to Power BI permission model mapping
 - [PAGINATED_REPORT_GUIDE.md](PAGINATED_REPORT_GUIDE.md) - Paginated report migration guidance
 - [PBIX_UPLOAD_GUIDE.md](PBIX_UPLOAD_GUIDE.md) - PBIRS PBIX upload compatibility diagnostics
+- [SECURITY_PRIVACY_CHECKLIST.md](SECURITY_PRIVACY_CHECKLIST.md) - Required privacy and secret-review checks before release
 
 ## Quick Reference
 

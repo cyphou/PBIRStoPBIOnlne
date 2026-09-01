@@ -1,10 +1,11 @@
-$api = "http://localhost/reports/api/v2.0"
-$files = @(
-    "<USER_HOME>\OneDrive - Organization\test.pbix",
-    "<USER_HOME>\OneDrive - Organization\Boulot\Analytics Team\Power BI Hero\Module 1\TEST.pbix"
+param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Files
 )
 
-foreach ($f in $files) {
+$api = "http://localhost/reports/api/v2.0"
+
+foreach ($f in $Files) {
     if (-not (Test-Path $f)) {
         Write-Host "MISSING $f"
         continue

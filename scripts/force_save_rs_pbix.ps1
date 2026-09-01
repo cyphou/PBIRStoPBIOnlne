@@ -1,6 +1,6 @@
 Add-Type -AssemblyName System.Windows.Forms
 
-$savePath = "<USER_HOME>\OneDrive - Organization\Boulot\Analytics Team\MigrationWorkspace\PBIReporttoPBIOnline\scripts\artifacts\pbix\rs_test.pbix"
+$savePath = Join-Path $PSScriptRoot "artifacts\pbix\rs_test.pbix"
 $saveDir = Split-Path $savePath -Parent
 if (-not (Test-Path $saveDir)) { New-Item -ItemType Directory -Path $saveDir -Force | Out-Null }
 if (Test-Path $savePath) { Remove-Item $savePath -Force }

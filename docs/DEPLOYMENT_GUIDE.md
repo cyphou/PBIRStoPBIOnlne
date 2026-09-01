@@ -131,15 +131,19 @@ PBIRS source auth is executed by the Python PBIRS client, not by PowerShell itse
 
 - **Bearer token**: pass `--token`
 - **Basic auth**: pass `--username` and `--password`
-- **Windows integrated auth**: pass `--use-windows-auth` (NTLM/Kerberos via `requests-ntlm`)
+- **Windows auth**: pass `--use-windows-auth` with `PBIRS_USERNAME` and `PBIRS_PASSWORD` (NTLM via `requests-ntlm`)
 
 PowerShell is only the command host on Windows. It does not provide the PBIRS auth protocol.
 
 Examples:
 
 ```powershell
-# Windows integrated (recommended on domain-joined hosts)
+# Windows auth without storing the password in command history
+$credential = Get-Credential
+$env:PBIRS_USERNAME = $credential.UserName
+$env:PBIRS_PASSWORD = $credential.GetNetworkCredential().Password
 python migrate.py --server https://pbirs.contoso.com/reports --assess --use-windows-auth
+Remove-Item Env:PBIRS_PASSWORD
 
 # Bearer token
 python migrate.py --server https://pbirs.contoso.com/reports --assess --token "$env:PBIRS_TOKEN"
@@ -152,6 +156,7 @@ Notes:
 
 - Avoid putting plain passwords directly in command history.
 - `--use-windows-auth` requires `requests` and `requests-ntlm` installed.
+- A browser succeeding while the CLI returns `401 Unauthorized` usually means the browser supplied Windows credentials that Python did not inherit.
 
 ### Service Principal (Recommended for CI/CD)
 

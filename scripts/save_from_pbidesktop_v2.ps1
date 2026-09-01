@@ -29,7 +29,7 @@ $sb = New-Object System.Text.StringBuilder(256)
 Write-Host "Foreground window: $($sb.ToString())" -ForegroundColor Cyan
 
 # Save As
-$savePath = "<USER_HOME>\Desktop\rs_test.pbix"
+$savePath = Join-Path ([Environment]::GetFolderPath("Desktop")) "rs_test.pbix"
 Write-Host "Sending Ctrl+Shift+S..."
 [System.Windows.Forms.SendKeys]::SendWait("^+s")
 Start-Sleep -Seconds 3

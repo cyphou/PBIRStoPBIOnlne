@@ -2,8 +2,8 @@
 # Approach 2: Try SOAP endpoint for upload
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-$srcFile = "<USER_HOME>\Downloads\SAP_O2C_V3 (1).pbix"
-$modifiedFile = "<USER_HOME>\OneDrive - Organization\Boulot\Analytics Team\MigrationWorkspace\PBIReporttoPBIOnline\scripts\artifacts\pbix\modified_test.pbix"
+$srcFile = Join-Path $PSScriptRoot "artifacts\pbix\sample.pbix"
+$modifiedFile = Join-Path $PSScriptRoot "artifacts\pbix\modified_test.pbix"
 
 # Copy and modify the .pbix
 Copy-Item $srcFile $modifiedFile -Force

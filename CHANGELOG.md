@@ -2,6 +2,17 @@
 
 ## Unreleased — Documentation + PBIRS Upload Diagnostics + Semantic BPA Export Enrichment
 
+### Security and privacy hygiene
+- Replaced personal account aliases, corporate profile paths, internal hostnames, and customer-specific filenames in tracked documentation and scripts with portable placeholders and environment-derived paths.
+- Added `tests/test_privacy_hygiene.py` to prevent private environment data from being committed again.
+- Added `docs/SECURITY_PRIVACY_CHECKLIST.md` as the required pre-release privacy and secret-review checklist.
+- Added regression coverage that rejects Customer/customer identifiers and any tracked migration artifacts.
+
+### PBIRS authentication reliability
+- PBIRS `401 Unauthorized` responses now include remediation specific to unauthenticated, bearer-token, Basic, and NTLM requests.
+- `PBIRSClient` now reads `PBIRS_USERNAME`, `PBIRS_PASSWORD`, and `PBIRS_TOKEN` when explicit arguments are absent, avoiding secrets in command history.
+- Windows-auth documentation now covers the browser-works/CLI-fails case and no longer assumes Python automatically inherits browser credentials.
+
 ### Automated limitation mitigation closure
 - **`pbi_import/subreport_resolver.py`** — now emits cycle groups and an automatic cycle mitigation plan (`retry-cycles`) with deterministic `bootstrap_order`
 - **`pbi_import/paginated_publisher.py`** — now accepts preferred dependency order and performs retry passes for deferred paginated uploads to mitigate circular subreport imports

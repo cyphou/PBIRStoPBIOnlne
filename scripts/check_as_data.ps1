@@ -1,4 +1,9 @@
-$dataDir = "<USER_HOME>\AppData\Local\Microsoft\Power BI Desktop SSRS\AnalysisServicesWorkspaces\AnalysisServicesWorkspace_eed750da-0ceb-4809-9107-f860d6333e87\Data"
+$workspaceRoot = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "Microsoft\Power BI Desktop SSRS\AnalysisServicesWorkspaces"
+$dataDir = Get-ChildItem $workspaceRoot -Directory -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    ForEach-Object { Join-Path $_.FullName "Data" } |
+    Where-Object { Test-Path $_ } |
+    Select-Object -First 1
 Write-Host "=== AS Data Directory ===" -ForegroundColor Cyan
 if (Test-Path $dataDir) {
     Get-ChildItem $dataDir -Recurse -Depth 3 | ForEach-Object {

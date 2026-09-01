@@ -1,5 +1,5 @@
 param(
-    [string]$FilePath = "<USER_HOME>\OneDrive - Organization\test.pbix"
+    [string]$FilePath = (Join-Path $PSScriptRoot "artifacts\pbix\sample.pbix")
 )
 
 if (-not (Test-Path $FilePath)) {

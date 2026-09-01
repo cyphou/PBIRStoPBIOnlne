@@ -117,7 +117,7 @@ public class MouseClick {
         }
         
         # Now handle the file save dialog
-        $savePath = "<USER_HOME>\Desktop\rs_test.pbix"
+        $savePath = Join-Path ([Environment]::GetFolderPath("Desktop")) "rs_test.pbix"
         Write-Host "Typing save path..."
         [System.Windows.Forms.Clipboard]::SetText($savePath)
         [System.Windows.Forms.SendKeys]::SendWait("^a")

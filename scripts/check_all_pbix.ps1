@@ -1,14 +1,8 @@
 # Check Version/Metadata of all local .pbix files
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-$files = @(
-    "<USER_HOME>\Downloads\Dashboard.pbix",
-    "<USER_HOME>\Downloads\FCA_Core_Report.pbix",
-    "<USER_HOME>\Downloads\Maintenance predictive RK 1.5 - Fabric.pbix",
-    "<USER_HOME>\Downloads\SAP O2C Process.pbix",
-    "<USER_HOME>\Downloads\SAP_O2C_V2_Backup.pbix",
-    "<USER_HOME>\Downloads\SAP_O2C_V3 (1).pbix"
-)
+$files = Get-ChildItem (Join-Path $HOME "Downloads") -Filter "*.pbix" -File |
+    Select-Object -ExpandProperty FullName
 
 foreach ($f in $files) {
     if (!(Test-Path $f)) { continue }

@@ -66,7 +66,7 @@ if ($fgTitle -like "*Power BI Desktop*") {
     
     if ($fg2Title -like "*Save*" -or $fg2Title -like "*Enregistrer*") {
         Write-Host "Save As dialog opened!" -ForegroundColor Green
-        $savePath = "<USER_HOME>\Desktop\rs_test.pbix"
+        $savePath = Join-Path ([Environment]::GetFolderPath("Desktop")) "rs_test.pbix"
         Start-Sleep -Milliseconds 500
         [System.Windows.Forms.Clipboard]::SetText($savePath)
         [System.Windows.Forms.SendKeys]::SendWait("^a")

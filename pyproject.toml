@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.12"
 authors = [
-    {name = "Analytics Team Team"}
+    {name = "PBIRS Migration Contributors"}
 ]
 keywords = ["power-bi", "report-server", "migration", "pbirs", "fabric"]
 classifiers = [

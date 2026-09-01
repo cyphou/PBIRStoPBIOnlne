@@ -234,7 +234,7 @@ flowchart LR
 | `--username USER` | PBIRS username |
 | `--password PASS` | PBIRS password (or use `--token`) |
 | `--token TOKEN` | Bearer token for PBIRS REST API |
-| `--use-windows-auth` | Use current Windows credentials (NTLM/Kerberos) |
+| `--use-windows-auth` | Use PBIRS NTLM auth with explicit or environment-provided Windows credentials |
 
 ### PBIRS Authentication Model
 
@@ -242,7 +242,7 @@ PBIRS authentication is handled by the Python client (`pbirs_export/api_client.p
 
 - `--token`: sends `Authorization: Bearer <token>`
 - `--username` + `--password`: sends Basic auth header
-- `--use-windows-auth`: uses `requests-ntlm` session auth for NTLM/Kerberos
+- `--use-windows-auth`: uses a `requests-ntlm` session; set `PBIRS_USERNAME` and `PBIRS_PASSWORD` when browser-integrated credentials are not available to Python
 
 PowerShell is only the shell used to run `python migrate.py` on Windows. The auth flow itself is inside the tool.
 
@@ -254,8 +254,12 @@ Security guidance:
 Windows examples:
 
 ```powershell
-# Windows integrated auth (NTLM/Kerberos)
+# Windows auth without storing the password in command history
+$credential = Get-Credential
+$env:PBIRS_USERNAME = $credential.UserName
+$env:PBIRS_PASSWORD = $credential.GetNetworkCredential().Password
 python migrate.py --server https://pbirs.company.com/reports --assess --use-windows-auth
+Remove-Item Env:PBIRS_PASSWORD
 
 # Token auth
 python migrate.py --server https://pbirs.company.com/reports --assess --token "$env:PBIRS_TOKEN"
@@ -263,6 +267,8 @@ python migrate.py --server https://pbirs.company.com/reports --assess --token "$
 # Basic auth (via environment variables)
 python migrate.py --server https://pbirs.company.com/reports --assess --username "$env:PBIRS_USERNAME" --password "$env:PBIRS_PASSWORD"
 ```
+
+If the API opens in a browser but the CLI returns `HTTP 401 Unauthorized`, the browser is likely sending your Windows identity automatically. Use the Windows-auth flow above or provide a valid `PBIRS_TOKEN`.
 
 ### Phases
 | Flag | Description |

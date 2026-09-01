@@ -41,7 +41,7 @@ Start-Sleep -Seconds 2
 
 # The Save As dialog should now be open
 # Type the file path
-$savePath = "<USER_HOME>\OneDrive - Organization\Boulot\Analytics Team\MigrationWorkspace\PBIReporttoPBIOnline\scripts\artifacts\pbix\rs_blank_report.pbix"
+$savePath = Join-Path $PSScriptRoot "artifacts\pbix\rs_blank_report.pbix"
 Write-Host "Typing save path: $savePath"
 
 # Clear any existing text in the filename field

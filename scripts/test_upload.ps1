@@ -2,10 +2,8 @@
 $apiUrl = "http://localhost/Reports/api/v2.0"
 
 # Check sizes first
-$localPbix = @(
-    "<USER_HOME>\Downloads\Dashboard.pbix",
-    "<USER_HOME>\Downloads\FCA_Core_Report.pbix"
-)
+$localPbix = Get-ChildItem (Join-Path $HOME "Downloads") -Filter "*.pbix" -File |
+    Select-Object -ExpandProperty FullName
 
 foreach ($path in $localPbix) {
     if (Test-Path $path) {

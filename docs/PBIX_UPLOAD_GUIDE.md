@@ -75,5 +75,5 @@ The export will now capture both `.rdl` and `.pbix` reports.
 - **Server**: `http://localhost/Reports` (ReportServer: `http://localhost/ReportServer`)
 - **Version**: 1.25.9558.32914
 - **Edition**: PBIRS Evaluation
-- **Authentication**: Windows/NTLM (CONTOSO\migration.user)
+- **Authentication**: Windows/NTLM (`<DOMAIN>\<user>`)
 - **PBI Desktop RS version needed**: 2.150.1926.0 (January 2026)

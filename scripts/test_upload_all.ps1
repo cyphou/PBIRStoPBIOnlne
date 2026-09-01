@@ -1,6 +1,6 @@
 # Test uploading the 3 minimal .pbix variants + the modified real one
 $apiUrl = "http://localhost/Reports/api/v2.0"
-$basePath = "<USER_HOME>\OneDrive - Organization\Boulot\Analytics Team\MigrationWorkspace\PBIReporttoPBIOnline\scripts\artifacts\pbix"
+$basePath = Join-Path $PSScriptRoot "artifacts\pbix"
 
 $testFiles = @(
     @{ File = "$basePath\no_datamodel.pbix"; Name = "Test_NoDataModel" },

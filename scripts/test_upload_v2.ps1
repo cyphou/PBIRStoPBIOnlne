@@ -1,6 +1,6 @@
 # Detailed upload test with full error body capture
 $apiUrl = "http://localhost/Reports/api/v2.0"
-$testFile = "<USER_HOME>\Downloads\FCA_Core_Report.pbix"
+$testFile = Join-Path $PSScriptRoot "artifacts\pbix\sample.pbix"
 
 Write-Host "File: $testFile ($([math]::Round((Get-Item $testFile).Length/1MB,1))MB)"
 
@@ -100,7 +100,7 @@ try {
 # Test 3: portal-style upload URL
 Write-Host "`n=== Test 3: Portal upload endpoint ==="
 try {
-    $webReq3 = [System.Net.WebRequest]::Create("http://localhost/Reports/api/v2.0/PowerBIReports(Path='/TestUpload')")
+    $webReq3 = [System.Net.WebRequest]::Create("$apiUrl/PowerBIReports(Path='/TestUpload')")
     $webReq3.Method = "PUT"
     $webReq3.ContentType = "application/json; charset=utf-8"
     $webReq3.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials

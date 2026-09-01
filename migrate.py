@@ -1415,7 +1415,11 @@ Examples:
     conn.add_argument("--username", help="PBIRS username")
     conn.add_argument("--password", help="PBIRS password")
     conn.add_argument("--token", help="Bearer token for PBIRS REST API")
-    conn.add_argument("--use-windows-auth", action="store_true", help="Use Windows auth (NTLM/Kerberos)")
+    conn.add_argument(
+        "--use-windows-auth",
+        action="store_true",
+        help="Use NTLM auth (credentials from flags or PBIRS_USERNAME/PBIRS_PASSWORD)",
+    )
 
     # PBI Online auth
     auth = p.add_argument_group("PBI Online Auth")

@@ -89,7 +89,7 @@ if ($fgTitle -notlike "*Power BI Desktop*") {
 }
 
 # Now send Ctrl+Shift+S
-$savePath = "<USER_HOME>\Desktop\rs_test.pbix"
+$savePath = Join-Path ([Environment]::GetFolderPath("Desktop")) "rs_test.pbix"
 Write-Host "`nSending Ctrl+Shift+S for Save As..."
 [System.Windows.Forms.SendKeys]::SendWait("^+s")
 Start-Sleep -Seconds 3

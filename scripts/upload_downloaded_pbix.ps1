@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$file = "<USER_HOME>\OneDrive - Organization\Boulot\Analytics Team\MigrationWorkspace\PBIReporttoPBIOnline\scripts\artifacts\pbix\AdventureWorks Sales.pbix"
+$file = Join-Path $PSScriptRoot "artifacts\pbix\sample.pbix"
 $name = "AdventureWorks_Sample"
 $folder = "/Direction Générale"
 $apiUrl = "http://localhost/Reports/api/v2.0/PowerBIReports"
