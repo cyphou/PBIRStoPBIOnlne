@@ -21,12 +21,15 @@ Current release baseline: **v1.8.0** (see `../CHANGELOG.md` and `ROADMAP.md`).
 ### Core CLI flows
 
 ```bash
-python migrate.py --server https://pbirs.company.com/reports --assess
-python migrate.py --server https://pbirs.company.com/reports --export --output-dir artifacts/export
+python migrate.py --server https://pbirs.company.com/reports --preflight --use-windows-auth --verbose
+python migrate.py --server https://pbirs.company.com/reports --assess --use-windows-auth
+python migrate.py --server https://pbirs.company.com/reports --export --use-windows-auth --output-dir artifacts/export
 python migrate.py --convert --input-dir artifacts/export --output-dir artifacts/converted
 python migrate.py --import --input-dir artifacts/converted --workspace-id <WORKSPACE_ID>
 python migrate.py --validate --input-dir artifacts/converted --workspace-id <WORKSPACE_ID>
 ```
+
+On Windows, `--use-windows-auth` prompts for PBIRS credentials when needed and uses the Windows trusted certificate store for HTTPS validation by default.
 
 ### CSV-driven import orchestration
 

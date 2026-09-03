@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Documentation + PBIRS Upload Diagnostics + Semantic BPA Export Enrichment
+## Unreleased — Authentication Simplification + Documentation + PBIRS Upload Diagnostics + Semantic BPA Export Enrichment
 
 ### Security and privacy hygiene
 - Replaced personal account aliases, corporate profile paths, internal hostnames, and customer-specific filenames in tracked documentation and scripts with portable placeholders and environment-derived paths.
@@ -11,7 +11,9 @@
 ### PBIRS authentication reliability
 - PBIRS `401 Unauthorized` responses now include remediation specific to unauthenticated, bearer-token, Basic, and NTLM requests.
 - `PBIRSClient` now reads `PBIRS_USERNAME`, `PBIRS_PASSWORD`, and `PBIRS_TOKEN` when explicit arguments are absent, avoiding secrets in command history.
-- Windows-auth documentation now covers the browser-works/CLI-fails case and no longer assumes Python automatically inherits browser credentials.
+- `--use-windows-auth` now prompts for `DOMAIN\user` and password during interactive runs when credentials are not supplied.
+- PBIRS HTTPS validation uses the Windows trusted certificate store by default on Windows, with `--no-use-windows-cert-store` for opt-out and `--pbirs-ca-bundle` as a PEM-bundle fallback.
+- Windows-auth documentation now covers the browser-works/CLI-fails case and the corporate certificate-chain case.
 
 ### Automated limitation mitigation closure
 - **`pbi_import/subreport_resolver.py`** — now emits cycle groups and an automatic cycle mitigation plan (`retry-cycles`) with deterministic `bootstrap_order`
@@ -32,10 +34,13 @@
 - **`tests/test_cli_smoke.py`** — added export-phase integration coverage for model-role propagation into `rls_ols_role_accounts.json` and `bpa_accounts.json`
 
 ### Documentation refresh
-- **`README.md`** — updated tested metrics (558 tests / 37 test files), added explicit sections for:
+- **`README.md`** — updated tested metrics (575 tests / 37 test files), added explicit sections for:
+	- simplified interactive Windows authentication and default Windows certificate-store TLS validation
+	- no-write `--preflight` connectivity checks
 	- export artifacts: `rls_ols_role_accounts.*` and `bpa_accounts.*`
 	- semantic model snapshot usage (`model_snapshot.json`)
 	- PBIRS upload diagnostics workflow and service-live incompatibility signal
+- **`docs/DEPLOYMENT_GUIDE.md`**, **`docs/FAQ.md`**, **`docs/README.md`**, and **`docs/PBIX_UPLOAD_GUIDE.md`** — refreshed PBIRS connectivity examples to use the simplified auth flow.
 - **`docs/KNOWN_LIMITATIONS.md`** — added PBIRS HTTP 422 upload limitation for service-live PBIX and linked script-based mitigation workflow
 - **`docs/ROADMAP.md`** — tracked completion for PBIRS upload diagnostics/pre-check scripts and account-attached BPA/security exports
 
@@ -51,7 +56,7 @@
 - **`scripts/upload_ordered_pbix.ps1`** — now includes compatibility pre-check and clearer skip/failure behavior for known incompatible PBIX payloads
 
 ### Validation
-- Test suite: **558 passed** (`pytest -q`)
+- Test suite: **575 passed** (`pytest -q`)
 
 ## v1.8.0 — Semantic BPA Model Intelligence + Export Role Attachment
 

@@ -68,12 +68,14 @@ Or upload via the portal:
 py migrate.py --server http://localhost/Reports --export --use-windows-auth --output-dir artifacts/export --verbose
 ```
 
+With `--use-windows-auth`, the tool prompts for `DOMAIN\user` and password when credentials are not supplied. On Windows, the PBIRS client uses the Windows trusted certificate store by default for HTTPS servers.
+
 The export will now capture both `.rdl` and `.pbix` reports.
 
 ## PBIRS Server Details
 
 - **Server**: `http://localhost/Reports` (ReportServer: `http://localhost/ReportServer`)
-- **Version**: 1.25.9558.32914
+- **Version**: 1.26.9637.31070
 - **Edition**: PBIRS Evaluation
 - **Authentication**: Windows/NTLM (`<DOMAIN>\<user>`)
 - **PBI Desktop RS version needed**: 2.150.1926.0 (January 2026)

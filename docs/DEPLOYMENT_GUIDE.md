@@ -41,8 +41,9 @@ Copy `.env.example` to `.env` and fill in:
 ```env
 # PBIRS Source
 PBIRS_SERVER_URL=https://pbirs.contoso.com/reports
-PBIRS_AUTH_METHOD=basic
-PBIRS_USERNAME=domain\user
+PBIRS_AUTH_METHOD=windows
+# Optional for noninteractive runs. Interactive Windows auth prompts when omitted.
+PBIRS_USERNAME=DOMAIN\user
 PBIRS_PASSWORD=<password>
 
 # Azure AD
@@ -63,15 +64,15 @@ pip install -e ".[deploy]"
 ```
 
 > [!NOTE]
-> Core migration (assessment, export, conversion) requires **no `pip install`** — pure stdlib.
-> Only the import/deploy phase needs `azure-identity`, `requests`, and `msal`.
+> Core migration without Windows auth requires **no `pip install`** — pure stdlib.
+> Windows auth uses `requests` + `requests-ntlm`; import/deploy also needs `azure-identity` and `msal`.
 
 ---
 
 ## 🔍 Step 4: Run Assessment
 
 ```bash
-python migrate.py --server https://pbirs.contoso.com/reports --assess --output-dir ./artifacts
+python migrate.py --server https://pbirs.contoso.com/reports --assess --use-windows-auth --output-dir ./artifacts
 ```
 
 Review `artifacts/assessment/assessment_report.html` — check GREEN/YELLOW/RED scores.
@@ -81,7 +82,7 @@ Review `artifacts/assessment/assessment_report.html` — check GREEN/YELLOW/RED 
 ## 📦 Step 5: Export Content
 
 ```bash
-python migrate.py --server https://pbirs.contoso.com/reports --export --output-dir ./artifacts --parallel 8
+python migrate.py --server https://pbirs.contoso.com/reports --export --use-windows-auth --output-dir ./artifacts --parallel 8
 ```
 
 > [!TIP]
@@ -131,19 +132,20 @@ PBIRS source auth is executed by the Python PBIRS client, not by PowerShell itse
 
 - **Bearer token**: pass `--token`
 - **Basic auth**: pass `--username` and `--password`
-- **Windows auth**: pass `--use-windows-auth` with `PBIRS_USERNAME` and `PBIRS_PASSWORD` (NTLM via `requests-ntlm`)
+- **Windows auth**: pass `--use-windows-auth`; the tool prompts for `DOMAIN\user` and password in interactive runs when credentials are not supplied (NTLM via `requests-ntlm`)
+
+On Windows, PBIRS HTTPS validation uses the Windows trusted root/intermediate certificate stores by default. Use `--pbirs-ca-bundle <PEM>` only when the corporate CA chain is not present in the Windows store.
 
 PowerShell is only the command host on Windows. It does not provide the PBIRS auth protocol.
 
 Examples:
 
 ```powershell
-# Windows auth without storing the password in command history
-$credential = Get-Credential
-$env:PBIRS_USERNAME = $credential.UserName
-$env:PBIRS_PASSWORD = $credential.GetNetworkCredential().Password
+# Windows auth with interactive prompt
 python migrate.py --server https://pbirs.contoso.com/reports --assess --use-windows-auth
-Remove-Item Env:PBIRS_PASSWORD
+
+# No-write connectivity check
+python migrate.py --server https://pbirs.contoso.com/reports --preflight --use-windows-auth --verbose
 
 # Bearer token
 python migrate.py --server https://pbirs.contoso.com/reports --assess --token "$env:PBIRS_TOKEN"
@@ -156,7 +158,8 @@ Notes:
 
 - Avoid putting plain passwords directly in command history.
 - `--use-windows-auth` requires `requests` and `requests-ntlm` installed.
-- A browser succeeding while the CLI returns `401 Unauthorized` usually means the browser supplied Windows credentials that Python did not inherit.
+- A browser succeeding while the CLI returns `401 Unauthorized` usually means the browser supplied Windows credentials that Python did not inherit. Retry with `--use-windows-auth` and enter a valid `DOMAIN\user`.
+- A browser succeeding while Python reports `SSLCertVerificationError` usually means Python did not trust the corporate certificate chain. On Windows this tool uses the Windows certificate store by default; otherwise pass `--pbirs-ca-bundle <PEM>`.
 
 ### Service Principal (Recommended for CI/CD)
 

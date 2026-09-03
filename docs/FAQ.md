@@ -26,13 +26,15 @@ PBIRS authentication is implemented in the Python client and supports:
 
 - Bearer token (`--token`)
 - Basic auth (`--username` + `--password`)
-- Windows auth (`--use-windows-auth`, NTLM/Kerberos)
+- Windows auth (`--use-windows-auth`, NTLM; prompts for `DOMAIN\user` and password during interactive runs when credentials are missing)
 
 So the auth protocol is handled by the tool, not by PowerShell.
 
+On Windows, PBIRS HTTPS certificate validation uses the Windows trusted root/intermediate certificate stores by default. If Python still reports `SSLCertVerificationError`, pass a PEM bundle with `--pbirs-ca-bundle`.
+
 ### Do I need to install external packages?
 
-Only for the **import/deploy phase**: `azure-identity`, `requests`, `msal`. The core engine runs entirely on Python's standard library.
+Only for Windows auth and the **import/deploy phase**. Windows auth uses `requests` and `requests-ntlm`; import/deploy also uses `azure-identity` and `msal`. The core engine otherwise runs entirely on Python's standard library.
 
 ---
 
