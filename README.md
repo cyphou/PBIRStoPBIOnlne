@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | 🏷️ **Version** | 1.8.0 |
-| ✅ **Tests** | 575 passed · 37 test files |
+| ✅ **Tests** | 577 passed · 37 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -234,7 +234,8 @@ flowchart LR
 | `--username USER` | PBIRS username |
 | `--password PASS` | PBIRS password (or use `--token`) |
 | `--token TOKEN` | Bearer token for PBIRS REST API |
-| `--use-windows-auth` | Use PBIRS NTLM auth with explicit or environment-provided Windows credentials |
+| `--use-windows-auth` | Use PBIRS NTLM auth with the current Windows logon or supplied credentials |
+| `--prompt-windows-credentials` | Prompt for PBIRS `DOMAIN\user` and password instead of using current Windows logon |
 | `--pbirs-ca-bundle FILE` | PEM CA bundle for PBIRS HTTPS certificate validation |
 | `--use-windows-cert-store` / `--no-use-windows-cert-store` | Use Windows trusted certificates for PBIRS HTTPS validation; enabled by default on Windows |
 
@@ -244,7 +245,7 @@ PBIRS authentication is handled by the Python client (`pbirs_export/api_client.p
 
 - `--token`: sends `Authorization: Bearer <token>`
 - `--username` + `--password`: sends Basic auth header
-- `--use-windows-auth`: uses a `requests-ntlm` session; prompts for `DOMAIN\user` and password during interactive runs when credentials are not supplied by flags or environment variables
+- `--use-windows-auth`: uses a `requests-ntlm` session with the current Windows logon by default; pass `--prompt-windows-credentials` or set `PBIRS_USERNAME`/`PBIRS_PASSWORD` when the current logon is not accepted by PBIRS
 - `--pbirs-ca-bundle`: points Python to the corporate root/intermediate CA bundle used to validate PBIRS HTTPS certificates; can also be set with `PBIRS_CA_BUNDLE`
 - Windows certificate store: enabled by default on Windows. The client builds a temporary CA bundle from the Windows trusted root/intermediate certificate stores, which matches the common corporate laptop setup where browsers and Windows tools already trust the PBIRS certificate chain.
 
@@ -258,8 +259,11 @@ Security guidance:
 Windows examples:
 
 ```powershell
-# Windows auth prompts for DOMAIN\user and password when needed
+# Windows auth uses the current Windows logon by default
 python migrate.py --server https://pbirs.company.com/reports --assess --use-windows-auth
+
+# Prompt for alternate Windows credentials
+python migrate.py --server https://pbirs.company.com/reports --assess --use-windows-auth --prompt-windows-credentials
 
 # Token auth
 python migrate.py --server https://pbirs.company.com/reports --assess --token "$env:PBIRS_TOKEN"
@@ -283,7 +287,7 @@ Invoke-RestMethod `
 
 `-AllowUnencryptedAuthentication` is only appropriate for a local HTTP test server. Use HTTPS for production PBIRS servers.
 
-Then run the migration tool's read-only preflight check. With `--use-windows-auth`, the tool prompts for `DOMAIN\user` and password when they are not supplied by flags or environment variables:
+Then run the migration tool's read-only preflight check. With `--use-windows-auth`, the tool uses the current Windows logon by default:
 
 ```powershell
 python migrate.py --server http://localhost/Reports --preflight --use-windows-auth --verbose
@@ -305,7 +309,7 @@ python migrate.py `
 
 The client also honors `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` when `PBIRS_CA_BUNDLE` or `--pbirs-ca-bundle` is not supplied. Do not bypass certificate validation for production migrations.
 
-If the API opens in a browser but the CLI returns `HTTP 401 Unauthorized`, the browser is likely sending your Windows identity automatically. Retry with `--use-windows-auth` and enter a valid `DOMAIN\user`, or provide a valid `PBIRS_TOKEN`.
+If the API opens in a browser but the CLI returns `HTTP 401 Unauthorized`, the current Windows logon may not be accepted by PBIRS. Retry with `--use-windows-auth --prompt-windows-credentials` and enter a valid `DOMAIN\user`, or provide a valid `PBIRS_TOKEN`.
 
 ### Phases
 | Flag | Description |
@@ -495,7 +499,7 @@ PBIReporttoPBIOnline/
 │       ├── pbi_client.py           #     PBI REST API wrapper
 │       ├── fabric_client.py        #     Fabric REST API wrapper
 │       └── config.py               #     Environment configuration
-├── tests/                          # 575 tests across 37 files
+├── tests/                          # 577 tests across 37 files
 ├── scripts/                        # Utility scripts
 ├── docs/                           # Full documentation suite
 └── examples/                       # Example configurations

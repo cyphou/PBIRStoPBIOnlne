@@ -29,7 +29,7 @@ python migrate.py --import --input-dir artifacts/converted --workspace-id <WORKS
 python migrate.py --validate --input-dir artifacts/converted --workspace-id <WORKSPACE_ID>
 ```
 
-On Windows, `--use-windows-auth` prompts for PBIRS credentials when needed and uses the Windows trusted certificate store for HTTPS validation by default.
+On Windows, `--use-windows-auth` uses the current Windows logon and the Windows trusted certificate store by default. Add `--prompt-windows-credentials` when PBIRS requires alternate credentials.
 
 ### CSV-driven import orchestration
 

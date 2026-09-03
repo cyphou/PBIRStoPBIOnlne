@@ -11,7 +11,7 @@
 ### PBIRS authentication reliability
 - PBIRS `401 Unauthorized` responses now include remediation specific to unauthenticated, bearer-token, Basic, and NTLM requests.
 - `PBIRSClient` now reads `PBIRS_USERNAME`, `PBIRS_PASSWORD`, and `PBIRS_TOKEN` when explicit arguments are absent, avoiding secrets in command history.
-- `--use-windows-auth` now prompts for `DOMAIN\user` and password during interactive runs when credentials are not supplied.
+- `--use-windows-auth` now uses the current Windows logon by default; `--prompt-windows-credentials` prompts for alternate PBIRS credentials when needed.
 - PBIRS HTTPS validation uses the Windows trusted certificate store by default on Windows, with `--no-use-windows-cert-store` for opt-out and `--pbirs-ca-bundle` as a PEM-bundle fallback.
 - Windows-auth documentation now covers the browser-works/CLI-fails case and the corporate certificate-chain case.
 

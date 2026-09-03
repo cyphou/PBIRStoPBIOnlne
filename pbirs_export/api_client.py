@@ -83,7 +83,7 @@ class PBIRSClient:
                 )
             self._session = _requests.Session()
             self._session.auth = _HttpNtlmAuth(
-                self.username or '', self.password or '', self._session
+                self.username, self.password, self._session
             )
             logger.info("Using NTLM authentication via requests-ntlm")
 

@@ -57,6 +57,7 @@ class TestCliWiring:
     def test_windows_auth_prompts_for_missing_credentials(self, monkeypatch):
         args = type("NS", (), {
             "use_windows_auth": True,
+            "prompt_windows_credentials": True,
             "token": None,
             "username": None,
             "password": None,
@@ -76,6 +77,7 @@ class TestCliWiring:
     def test_windows_auth_does_not_prompt_noninteractive(self, monkeypatch):
         args = type("NS", (), {
             "use_windows_auth": True,
+            "prompt_windows_credentials": True,
             "token": None,
             "username": None,
             "password": None,
@@ -84,6 +86,24 @@ class TestCliWiring:
         monkeypatch.delenv("PBIRS_USERNAME", raising=False)
         monkeypatch.delenv("PBIRS_PASSWORD", raising=False)
         monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+        prompt = MagicMock()
+        monkeypatch.setattr("builtins.input", prompt)
+
+        migrate._populate_pbirs_credentials(args)
+
+        prompt.assert_not_called()
+        assert args.username is None
+        assert args.password is None
+
+    def test_windows_auth_uses_current_user_without_prompt_by_default(self, monkeypatch):
+        args = type("NS", (), {
+            "use_windows_auth": True,
+            "prompt_windows_credentials": False,
+            "token": None,
+            "username": None,
+            "password": None,
+        })()
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
         prompt = MagicMock()
         monkeypatch.setattr("builtins.input", prompt)
 

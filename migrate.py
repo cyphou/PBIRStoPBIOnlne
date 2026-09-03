@@ -75,6 +75,8 @@ def _populate_pbirs_credentials(args: argparse.Namespace) -> None:
     """Prompt for missing PBIRS Windows credentials during interactive runs."""
     if not getattr(args, "use_windows_auth", False):
         return
+    if not getattr(args, "prompt_windows_credentials", False):
+        return
     if getattr(args, "token", None) or os.environ.get("PBIRS_TOKEN"):
         return
 
@@ -1449,7 +1451,12 @@ Examples:
     conn.add_argument(
         "--use-windows-auth",
         action="store_true",
-        help="Use NTLM auth (credentials from flags or PBIRS_USERNAME/PBIRS_PASSWORD)",
+        help="Use NTLM auth with the current Windows logon or supplied credentials",
+    )
+    conn.add_argument(
+        "--prompt-windows-credentials",
+        action="store_true",
+        help="Prompt for PBIRS DOMAIN\\user and password instead of using current Windows logon",
     )
     conn.add_argument(
         "--pbirs-ca-bundle",

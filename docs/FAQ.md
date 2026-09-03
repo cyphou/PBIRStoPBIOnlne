@@ -26,7 +26,7 @@ PBIRS authentication is implemented in the Python client and supports:
 
 - Bearer token (`--token`)
 - Basic auth (`--username` + `--password`)
-- Windows auth (`--use-windows-auth`, NTLM; prompts for `DOMAIN\user` and password during interactive runs when credentials are missing)
+- Windows auth (`--use-windows-auth`, NTLM; uses the current Windows logon by default, with `--prompt-windows-credentials` for alternate credentials)
 
 So the auth protocol is handled by the tool, not by PowerShell.
 

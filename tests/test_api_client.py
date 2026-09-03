@@ -36,6 +36,15 @@ class TestPBIRSClient:
         client = PBIRSClient("https://pbirs.local/reports/", use_windows_auth=True)
         assert client._base_url == "https://pbirs.local/reports/api/v2.0"
 
+    def test_ntlm_auth_uses_current_windows_logon_by_default(self, monkeypatch):
+        monkeypatch.delenv("PBIRS_USERNAME", raising=False)
+        monkeypatch.delenv("PBIRS_PASSWORD", raising=False)
+
+        client = PBIRSClient("https://pbirs.local/reports", use_windows_auth=True)
+
+        assert client._session.auth.username is None
+        assert client._session.auth.password is None
+
     def test_windows_cert_store_defaults_on_windows(self, monkeypatch):
         monkeypatch.delenv("PBIRS_USE_WINDOWS_CERT_STORE", raising=False)
         monkeypatch.setattr(api_client.os, "name", "nt")

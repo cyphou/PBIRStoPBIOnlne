@@ -42,7 +42,7 @@ Copy `.env.example` to `.env` and fill in:
 # PBIRS Source
 PBIRS_SERVER_URL=https://pbirs.contoso.com/reports
 PBIRS_AUTH_METHOD=windows
-# Optional for noninteractive runs. Interactive Windows auth prompts when omitted.
+# Optional for alternate/noninteractive credentials. Current Windows logon is used when omitted.
 PBIRS_USERNAME=DOMAIN\user
 PBIRS_PASSWORD=<password>
 
@@ -132,7 +132,7 @@ PBIRS source auth is executed by the Python PBIRS client, not by PowerShell itse
 
 - **Bearer token**: pass `--token`
 - **Basic auth**: pass `--username` and `--password`
-- **Windows auth**: pass `--use-windows-auth`; the tool prompts for `DOMAIN\user` and password in interactive runs when credentials are not supplied (NTLM via `requests-ntlm`)
+- **Windows auth**: pass `--use-windows-auth`; the tool uses the current Windows logon by default (NTLM via `requests-ntlm`). Use `--prompt-windows-credentials` for alternate PBIRS credentials.
 
 On Windows, PBIRS HTTPS validation uses the Windows trusted root/intermediate certificate stores by default. Use `--pbirs-ca-bundle <PEM>` only when the corporate CA chain is not present in the Windows store.
 
@@ -141,8 +141,11 @@ PowerShell is only the command host on Windows. It does not provide the PBIRS au
 Examples:
 
 ```powershell
-# Windows auth with interactive prompt
+# Windows auth with current Windows logon
 python migrate.py --server https://pbirs.contoso.com/reports --assess --use-windows-auth
+
+# Alternate Windows credentials
+python migrate.py --server https://pbirs.contoso.com/reports --assess --use-windows-auth --prompt-windows-credentials
 
 # No-write connectivity check
 python migrate.py --server https://pbirs.contoso.com/reports --preflight --use-windows-auth --verbose
@@ -158,7 +161,7 @@ Notes:
 
 - Avoid putting plain passwords directly in command history.
 - `--use-windows-auth` requires `requests` and `requests-ntlm` installed.
-- A browser succeeding while the CLI returns `401 Unauthorized` usually means the browser supplied Windows credentials that Python did not inherit. Retry with `--use-windows-auth` and enter a valid `DOMAIN\user`.
+- A browser succeeding while the CLI returns `401 Unauthorized` usually means PBIRS did not accept the current Windows logon. Retry with `--use-windows-auth --prompt-windows-credentials` and enter a valid `DOMAIN\user`.
 - A browser succeeding while Python reports `SSLCertVerificationError` usually means Python did not trust the corporate certificate chain. On Windows this tool uses the Windows certificate store by default; otherwise pass `--pbirs-ca-bundle <PEM>`.
 
 ### Service Principal (Recommended for CI/CD)
