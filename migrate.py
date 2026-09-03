@@ -97,6 +97,74 @@ def _populate_pbirs_credentials(args: argparse.Namespace) -> None:
             setattr(args, "password", password)
 
 
+def _write_planning_artifacts(
+    client: Any,
+    catalog: dict,
+    output_dir: Path,
+    logger: logging.Logger,
+) -> None:
+    """Write mapping, permission, security, and account-planning artifacts."""
+    from pbirs_export.bpa_extractor import BPAExtractor
+    from pbirs_export.datasource_extractor import DatasourceExtractor
+    from pbirs_export.mapping_generator import MappingGenerator
+    from pbirs_export.permission_extractor import PermissionExtractor
+    from pbirs_export.role_membership_extractor import RoleMembershipExtractor
+    from pbirs_export.security_extractor import SecurityExtractor
+    from pbi_import.model_snapshot import ModelSnapshotLoader
+
+    ds_extractor = DatasourceExtractor(client)
+    datasources = ds_extractor.extract_all(catalog)
+    with open(output_dir / "datasources.json", "w", encoding="utf-8") as f:
+        json.dump(datasources, f, indent=2, default=str)
+
+    perm_extractor = PermissionExtractor(client)
+    permissions = perm_extractor.extract_all(catalog)
+    with open(output_dir / "permissions.json", "w", encoding="utf-8") as f:
+        json.dump(permissions, f, indent=2, default=str)
+
+    sec_extractor = SecurityExtractor(client)
+    security = sec_extractor.extract_all(catalog)
+    with open(output_dir / "security.json", "w", encoding="utf-8") as f:
+        json.dump(security, f, indent=2, default=str)
+
+    model_snapshot = ModelSnapshotLoader().load(str(output_dir))
+    role_extractor = RoleMembershipExtractor()
+    role_memberships = role_extractor.extract(
+        permissions,
+        security,
+        model_snapshot=model_snapshot,
+    )
+    role_json = role_extractor.save_json(str(output_dir), role_memberships)
+    role_csv = role_extractor.save_csv(str(output_dir), role_memberships)
+    logger.info(
+        "RLS/OLS role-account extract generated: %s, %s",
+        role_json.name,
+        role_csv.name,
+    )
+
+    bpa_extractor = BPAExtractor()
+    bpa_payload = bpa_extractor.extract(catalog, security, model_snapshot=model_snapshot)
+    bpa_json = bpa_extractor.save_json(str(output_dir), bpa_payload)
+    bpa_csv = bpa_extractor.save_csv(str(output_dir), bpa_payload)
+    logger.info(
+        "BPA account extract generated: %s, %s",
+        bpa_json.name,
+        bpa_csv.name,
+    )
+
+    mapping_gen = MappingGenerator(
+        catalog=catalog,
+        permissions=permissions,
+        datasources=datasources,
+        security=security,
+    )
+    mapping_paths = mapping_gen.generate_all(str(output_dir))
+    logger.info(
+        "Mapping CSVs generated: %s",
+        ", ".join(p.name for p in mapping_paths.values()),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Phase implementations
 # ---------------------------------------------------------------------------
@@ -138,6 +206,8 @@ def _run_assessment(args: argparse.Namespace, logger: logging.Logger) -> int:
     with open(inventory_path, "w", encoding="utf-8") as f:
         json.dump(catalog, f, indent=2, default=str)
     logger.info("Inventory saved to %s", inventory_path)
+
+    _write_planning_artifacts(client, catalog, output_dir, logger)
 
     # RDL feature analysis (v1.2)
     from pbirs_export.rdl_analyser import analyse_rdl_directory

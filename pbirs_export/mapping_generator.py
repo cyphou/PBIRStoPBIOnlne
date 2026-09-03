@@ -1,10 +1,11 @@
 """
 Mapping Generator — produces CSV mapping templates from extracted PBIRS data.
 
-Generates three CSV files to help plan the migration:
+Generates four CSV files to help plan the migration:
   1. folders_mapping.csv  — PBIRS folders → target PBI workspace mapping
   2. users_mapping.csv    — PBIRS principals (users/groups) → Azure AD identity mapping
-  3. connections_mapping.csv — PBIRS datasource connections → gateway datasource mapping
+    3. folder_access_mapping.csv — PBIRS folder principals → target workspace role plan
+    4. connections_mapping.csv — PBIRS datasource connections → gateway datasource mapping
 
 The user fills in the "target" columns, then feeds the CSVs back into the
 import phase for automated workspace creation, permission assignment, and
@@ -45,6 +46,7 @@ class MappingGenerator:
         paths = {
             "folders": self._generate_folders_csv(out),
             "users": self._generate_users_csv(out),
+            "folder_access": self._generate_folder_access_csv(out),
             "connections": self._generate_connections_csv(out),
         }
 
@@ -224,7 +226,103 @@ class MappingGenerator:
         return list(seen.values())
 
     # ------------------------------------------------------------------
-    # 3. Connections / datasource mapping
+    # 3. Folder access / workspace permission planning
+    # ------------------------------------------------------------------
+
+    def _generate_folder_access_csv(self, output_dir: Path) -> Path:
+        """Generate folder_access_mapping.csv for workspace-scoped permissions."""
+        rows = self._collect_folder_access_rows()
+
+        csv_path = output_dir / "folder_access_mapping.csv"
+        with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "folder_path",
+                "pbirs_principal",
+                "type",
+                "domain",
+                "ssrs_roles",
+                "item_count",
+                "target_workspace",
+                "target_azure_ad",
+                "target_pbi_role",
+                "notes",
+            ])
+            for row in rows:
+                writer.writerow([
+                    row["folder_path"],
+                    row["pbirs_principal"],
+                    row["type"],
+                    row["domain"],
+                    ", ".join(row["ssrs_roles"]),
+                    row["item_count"],
+                    "",
+                    "",
+                    self._suggest_pbi_role(row["ssrs_roles"]),
+                    "",
+                ])
+
+        logger.info("Folder access mapping: %d rows → %s", len(rows), csv_path)
+        return csv_path
+
+    def _collect_folder_access_rows(self) -> list[dict[str, Any]]:
+        grouped: dict[tuple[str, str], dict[str, Any]] = {}
+
+        effective = self.security.get("effective_permissions", [])
+        if effective:
+            for entry in effective:
+                principal = str(entry.get("principal", ""))
+                role_name = str(entry.get("ssrs_role", ""))
+                item_path = str(entry.get("item_path", ""))
+                if not principal or not role_name or not item_path:
+                    continue
+                self._add_folder_access_row(grouped, item_path, principal, role_name)
+        else:
+            for item_policy in self.permissions.get("item_policies", []):
+                item_path = str(item_policy.get("item_path", ""))
+                for policy in item_policy.get("policies", []):
+                    principal = str(policy.get("GroupUserName", ""))
+                    if not principal or not item_path:
+                        continue
+                    for role in policy.get("Roles", []):
+                        role_name = str(role.get("Name", ""))
+                        if role_name:
+                            self._add_folder_access_row(grouped, item_path, principal, role_name)
+
+        rows = list(grouped.values())
+        for row in rows:
+            row["ssrs_roles"] = sorted(row["ssrs_roles"])
+        return sorted(rows, key=lambda r: (r["folder_path"], r["pbirs_principal"]))
+
+    def _add_folder_access_row(
+        self,
+        grouped: dict[tuple[str, str], dict[str, Any]],
+        item_path: str,
+        principal: str,
+        role_name: str,
+    ) -> None:
+        folder_path = self._folder_from_item_path(item_path)
+        key = (folder_path, principal)
+        if key not in grouped:
+            grouped[key] = {
+                "folder_path": folder_path,
+                "pbirs_principal": principal,
+                "type": self._classify_type(principal),
+                "domain": principal.split("\\")[0] if "\\" in principal else "",
+                "ssrs_roles": set(),
+                "item_count": 0,
+            }
+        grouped[key]["ssrs_roles"].add(role_name)
+        grouped[key]["item_count"] += 1
+
+    @staticmethod
+    def _folder_from_item_path(item_path: str) -> str:
+        parts = item_path.rstrip("/").rsplit("/", 1)
+        folder = parts[0] if len(parts) > 1 else "/"
+        return folder or "/"
+
+    # ------------------------------------------------------------------
+    # 4. Connections / datasource mapping
     # ------------------------------------------------------------------
 
     def _generate_connections_csv(self, output_dir: Path) -> Path:

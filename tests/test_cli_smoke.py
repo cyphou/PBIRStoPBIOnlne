@@ -114,6 +114,9 @@ class TestCliWiring:
         assert args.password is None
 
     def test_assess_only_succeeds(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
+        fake_pbirs_client.list_datasources.return_value = []
+        fake_pbirs_client.get_system_policies.return_value = []
+        fake_pbirs_client.get_item_policies.return_value = []
         rc = _run_cli(
             ["--server", "http://x", "--assess", "--output-dir", str(tmp_path)],
             monkeypatch, fake_pbirs_client, fake_pbi_client,
@@ -121,6 +124,14 @@ class TestCliWiring:
         assert rc == migrate.ExitCode.SUCCESS
         assert (tmp_path / "assessment_report.json").exists()
         assert (tmp_path / "assessment_report.html").exists()
+        assert (tmp_path / "folders_mapping.csv").exists()
+        assert (tmp_path / "users_mapping.csv").exists()
+        assert (tmp_path / "folder_access_mapping.csv").exists()
+        assert (tmp_path / "connections_mapping.csv").exists()
+        assert (tmp_path / "rls_ols_role_accounts.csv").exists()
+        assert (tmp_path / "bpa_accounts.csv").exists()
+        assert (tmp_path / "permissions.json").exists()
+        assert (tmp_path / "security.json").exists()
 
     def test_import_phase_uses_real_apis(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
         """The import phase must construct publishers with a pbi_client (not a workspace id)."""

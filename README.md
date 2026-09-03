@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | 🏷️ **Version** | 1.8.0 |
-| ✅ **Tests** | 577 passed · 37 test files |
+| ✅ **Tests** | 581 passed · 37 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -51,6 +51,10 @@ python migrate.py --server https://pbirs.company.com/reports --assess
 python migrate.py --server https://pbirs.company.com/reports --assess --folder "/Sales Reports"
 python migrate.py --server https://pbirs.company.com/reports --assess --content-types powerbi paginated
 ```
+
+Assessment writes the readiness report plus planning artifacts used before import:
+`folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`,
+`permissions.json`, `security.json`, `rls_ols_role_accounts.csv`, and `bpa_accounts.csv`.
 
 #### 📁 Phase-by-phase
 
@@ -405,9 +409,18 @@ See:
 
 ---
 
-## 🧪 Export Artifacts For Security And BPA
+## 🧪 Planning Artifacts For Security And BPA
 
-The export phase now emits account-attached security and BPA artifacts:
+Assessment and export both emit planning, account-attached security, and BPA artifacts:
+
+- `folders_mapping.csv`
+    - PBIRS folder-to-target-workspace planning. Fill `target_workspace` to split content by source folder.
+- `users_mapping.csv`
+    - PBIRS principal-to-Azure AD identity lookup. Fill `target_azure_ad`; role suggestions are global hints only.
+- `folder_access_mapping.csv`
+    - Folder-scoped access plan. CSV-driven import uses this with `folders_mapping.csv` so each target workspace receives only principals that had access to the mapped source folder subtree.
+- `connections_mapping.csv`
+    - PBIRS datasource-to-gateway datasource planning.
 
 - `rls_ols_role_accounts.json` and `rls_ols_role_accounts.csv`
     - Normalized role/account assignments built from item policies, system policies, and effective permissions.
@@ -499,7 +512,7 @@ PBIReporttoPBIOnline/
 │       ├── pbi_client.py           #     PBI REST API wrapper
 │       ├── fabric_client.py        #     Fabric REST API wrapper
 │       └── config.py               #     Environment configuration
-├── tests/                          # 577 tests across 37 files
+├── tests/                          # 581 tests across 37 files
 ├── scripts/                        # Utility scripts
 ├── docs/                           # Full documentation suite
 └── examples/                       # Example configurations

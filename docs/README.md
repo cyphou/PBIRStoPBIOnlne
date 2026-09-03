@@ -31,6 +31,10 @@ python migrate.py --validate --input-dir artifacts/converted --workspace-id <WOR
 
 On Windows, `--use-windows-auth` uses the current Windows logon and the Windows trusted certificate store by default. Add `--prompt-windows-credentials` when PBIRS requires alternate credentials.
 
+`--assess` writes the readiness report and the planning artifacts needed for mapping review: `folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`, `permissions.json`, `security.json`, `rls_ols_role_accounts.csv`, and `bpa_accounts.csv`.
+
+For multi-workspace migrations, fill `target_workspace` in `folders_mapping.csv` and `target_azure_ad` in `users_mapping.csv`. The CSV import helper uses `folder_access_mapping.csv` to apply only the principals from each source folder subtree to the matching target workspace.
+
 ### CSV-driven import orchestration
 
 ```bash

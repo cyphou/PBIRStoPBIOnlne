@@ -90,7 +90,7 @@ class TestMappingGenerator:
     def test_generate_all_creates_three_files(self, catalog, permissions, datasources, tmp_path):
         gen = MappingGenerator(catalog, permissions, datasources)
         paths = gen.generate_all(str(tmp_path))
-        assert set(paths.keys()) == {"folders", "users", "connections"}
+        assert set(paths.keys()) == {"folders", "users", "folder_access", "connections"}
         for p in paths.values():
             assert p.exists()
 
@@ -151,6 +151,18 @@ class TestMappingGenerator:
         paths = gen.generate_all(str(tmp_path))
         rows = _read_csv(paths["users"])
         assert "target_azure_ad" in rows[0]
+
+    def test_folder_access_csv_scopes_principals_by_folder(self, catalog, permissions, datasources, tmp_path):
+        gen = MappingGenerator(catalog, permissions, datasources)
+        paths = gen.generate_all(str(tmp_path))
+        rows = _read_csv(paths["folder_access"])
+
+        finance = [r for r in rows if r["folder_path"] == "/Finance"]
+        hr = [r for r in rows if r["folder_path"] == "/HR"]
+
+        assert {r["pbirs_principal"] for r in finance} == {"DOMAIN\\Finance", "user@corp.com"}
+        assert {r["pbirs_principal"] for r in hr} == {"DOMAIN\\HR"}
+        assert next(r for r in hr if r["pbirs_principal"] == "DOMAIN\\HR")["target_pbi_role"] == "Admin"
 
     # -- Connections CSV --
 

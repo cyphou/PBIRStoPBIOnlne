@@ -4,9 +4,11 @@ edge cases, round-trip fidelity, and content integrity."""
 import csv
 import os
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from pbirs_export.mapping_generator import MappingGenerator
+from scripts.csv_to_pbi_online_import import _apply_permissions, _parse_workspace_assignments
 
 
 # ---------------------------------------------------------------------------
@@ -110,10 +112,10 @@ def rich_embedded_ds():
 class TestCSVFileStructure:
     """Verify generated CSV files exist and have correct structure."""
 
-    def test_all_three_csvs_created(self, tmp_path, rich_catalog, rich_embedded_ds):
+    def test_all_mapping_csvs_created(self, tmp_path, rich_catalog, rich_embedded_ds):
         gen = _make_generator(items=rich_catalog, embedded_ds=rich_embedded_ds)
         paths = gen.generate_all(str(tmp_path))
-        assert set(paths.keys()) == {"folders", "users", "connections"}
+        assert set(paths.keys()) == {"folders", "users", "folder_access", "connections"}
         for p in paths.values():
             assert p.exists()
             assert p.suffix == ".csv"
@@ -123,6 +125,7 @@ class TestCSVFileStructure:
         paths = gen.generate_all(str(tmp_path))
         assert paths["folders"].name == "folders_mapping.csv"
         assert paths["users"].name == "users_mapping.csv"
+        assert paths["folder_access"].name == "folder_access_mapping.csv"
         assert paths["connections"].name == "connections_mapping.csv"
 
     def test_folders_csv_headers(self, tmp_path, rich_catalog):
@@ -163,6 +166,107 @@ class TestCSVFileStructure:
             "connection_string", "server_name", "database_name",
             "needs_gateway", "target_gateway_id", "target_datasource_id", "notes",
         ]
+
+    def test_folder_access_csv_headers(self, tmp_path):
+        gen = _make_generator(
+            security={
+                "effective_permissions": [
+                    {
+                        "item_path": "/Finance/Sales",
+                        "principal": "DOMAIN\\Finance",
+                        "ssrs_role": "Browser",
+                    }
+                ]
+            }
+        )
+        paths = gen.generate_all(str(tmp_path))
+        with open(paths["folder_access"], newline="", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+        assert headers == [
+            "folder_path", "pbirs_principal", "type", "domain", "ssrs_roles",
+            "item_count", "target_workspace", "target_azure_ad", "target_pbi_role", "notes",
+        ]
+
+    def test_workspace_assignments_are_scoped_by_folder_mapping(self):
+        folder_rows = [
+            {"folder_path": "/Finance", "target_workspace": "Finance WS"},
+            {"folder_path": "/HR", "target_workspace": "HR WS"},
+        ]
+        user_rows = [
+            {"pbirs_principal": "DOMAIN\\Finance", "target_azure_ad": "finance@example.com"},
+            {"pbirs_principal": "DOMAIN\\HR", "target_azure_ad": "hr@example.com"},
+        ]
+        folder_access_rows = [
+            {
+                "folder_path": "/Finance",
+                "pbirs_principal": "DOMAIN\\Finance",
+                "target_pbi_role": "Viewer",
+            },
+            {
+                "folder_path": "/HR",
+                "pbirs_principal": "DOMAIN\\HR",
+                "target_pbi_role": "Admin",
+            },
+        ]
+
+        assignments = _parse_workspace_assignments(
+            folder_rows,
+            user_rows,
+            folder_access_rows,
+        )
+
+        assert assignments == [
+            {
+                "workspace_name": "Finance WS",
+                "target_azure_ad": "finance@example.com",
+                "target_pbi_role": "Viewer",
+            },
+            {
+                "workspace_name": "HR WS",
+                "target_azure_ad": "hr@example.com",
+                "target_pbi_role": "Admin",
+            },
+        ]
+
+    def test_permission_apply_only_targets_matching_workspace(self):
+        pbi_client = MagicMock()
+        pbi_client.list_workspaces.return_value = [
+            {"name": "Finance WS", "id": "finance-id"},
+            {"name": "HR WS", "id": "hr-id"},
+        ]
+        assignments = [
+            {
+                "workspace_name": "Finance WS",
+                "target_azure_ad": "finance@example.com",
+                "target_pbi_role": "Viewer",
+            },
+            {
+                "workspace_name": "HR WS",
+                "target_azure_ad": "hr@example.com",
+                "target_pbi_role": "Admin",
+            },
+        ]
+
+        summary = _apply_permissions(
+            pbi_client=pbi_client,
+            workspace_names=["Finance WS", "HR WS"],
+            assignments=assignments,
+            dry_run=False,
+        )
+
+        assert summary == {"workspaces": 2, "assignments": 2, "failed": 0}
+        pbi_client.add_workspace_user.assert_any_call(
+            workspace_id="finance-id",
+            email_or_upn="finance@example.com",
+            role="Viewer",
+        )
+        pbi_client.add_workspace_user.assert_any_call(
+            workspace_id="hr-id",
+            email_or_upn="hr@example.com",
+            role="Admin",
+        )
+        assert pbi_client.add_workspace_user.call_count == 2
 
     def test_output_dir_created_if_missing(self, tmp_path):
         nested = tmp_path / "a" / "b" / "c"

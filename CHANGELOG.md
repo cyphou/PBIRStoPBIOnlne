@@ -14,6 +14,8 @@
 - `--use-windows-auth` now uses the current Windows logon by default; `--prompt-windows-credentials` prompts for alternate PBIRS credentials when needed.
 - PBIRS HTTPS validation uses the Windows trusted certificate store by default on Windows, with `--no-use-windows-cert-store` for opt-out and `--pbirs-ca-bundle` as a PEM-bundle fallback.
 - Windows-auth documentation now covers the browser-works/CLI-fails case and the corporate certificate-chain case.
+- `--assess` now emits planning CSV/security artifacts (`folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`, `permissions.json`, `security.json`, `rls_ols_role_accounts.csv`, and `bpa_accounts.csv`) in addition to readiness reports.
+- CSV-driven import now uses `folder_access_mapping.csv` to apply permissions per mapped workspace, avoiding global user assignments across all folder-split workspaces.
 
 ### Automated limitation mitigation closure
 - **`pbi_import/subreport_resolver.py`** — now emits cycle groups and an automatic cycle mitigation plan (`retry-cycles`) with deterministic `bootstrap_order`

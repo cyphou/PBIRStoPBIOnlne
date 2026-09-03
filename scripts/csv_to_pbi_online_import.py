@@ -4,13 +4,14 @@
 This script consumes:
 - folders_mapping.csv
 - users_mapping.csv
+- folder_access_mapping.csv (optional; scopes permissions to mapped workspaces)
 - connections_mapping.csv
 
 It then:
 1) Creates JSON mapping files required by migrate.py
 2) Optionally resolves/creates missing gateway datasource ids
 3) Runs import with new workspaces (map-folder) + connection rebinding (map-gateway)
-4) Applies workspace permissions from users_mapping.csv
+4) Applies workspace permissions from folder_access_mapping.csv + users_mapping.csv
 5) Runs validation per target workspace
 """
 
@@ -221,6 +222,70 @@ def _parse_user_assignments(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     return deduped
 
 
+_ROLE_RANK = {"Viewer": 1, "Contributor": 2, "Member": 3, "Admin": 4}
+
+
+def _highest_role(roles: set[str]) -> str:
+    for role in ("Admin", "Member", "Contributor", "Viewer"):
+        if role in roles:
+            return role
+    return "Viewer"
+
+
+def _workspace_for_folder(folder_path: str, folder_rows: list[dict[str, str]]) -> str:
+    folder = (folder_path or "/").rstrip("/") or "/"
+    matches: list[tuple[int, str]] = []
+    for row in folder_rows:
+        candidate = (row.get("folder_path") or "").strip().rstrip("/") or "/"
+        workspace = (row.get("target_workspace") or "").strip()
+        if not workspace:
+            continue
+        if folder == candidate or folder.startswith(candidate + "/"):
+            matches.append((len(candidate), workspace))
+    if not matches:
+        return ""
+    return sorted(matches, reverse=True)[0][1]
+
+
+def _parse_workspace_assignments(
+    folder_rows: list[dict[str, str]],
+    user_rows: list[dict[str, str]],
+    folder_access_rows: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Build workspace-scoped permission assignments from folder access rows."""
+    identity_map = {
+        (row.get("pbirs_principal") or "").strip().lower(): (
+            row.get("target_azure_ad") or ""
+        ).strip()
+        for row in user_rows
+        if (row.get("pbirs_principal") or "").strip()
+    }
+    grouped: dict[tuple[str, str], set[str]] = {}
+
+    for row in folder_access_rows:
+        workspace = (row.get("target_workspace") or "").strip()
+        if not workspace:
+            workspace = _workspace_for_folder(row.get("folder_path") or "", folder_rows)
+        principal = (row.get("pbirs_principal") or "").strip()
+        target = (row.get("target_azure_ad") or "").strip()
+        if not target:
+            target = identity_map.get(principal.lower(), "")
+        if not workspace or not target:
+            continue
+
+        role = (row.get("target_pbi_role") or "").strip() or "Viewer"
+        grouped.setdefault((workspace, target), set()).add(role)
+
+    return [
+        {
+            "workspace_name": workspace,
+            "target_azure_ad": target,
+            "target_pbi_role": _highest_role(roles),
+        }
+        for (workspace, target), roles in sorted(grouped.items())
+    ]
+
+
 def _build_migrate_auth_flags(args: argparse.Namespace) -> list[str]:
     flags: list[str] = []
     if args.pbi_token:
@@ -266,6 +331,9 @@ def _apply_permissions(
             continue
 
         for entry in assignments:
+            target_workspace = entry.get("workspace_name")
+            if target_workspace and target_workspace != ws_name:
+                continue
             summary["assignments"] += 1
             if dry_run:
                 continue
@@ -317,10 +385,12 @@ def main() -> int:
     folders_csv = _required(csv_dir / "folders_mapping.csv", "folders_mapping.csv")
     users_csv = _required(csv_dir / "users_mapping.csv", "users_mapping.csv")
     connections_csv = _required(csv_dir / "connections_mapping.csv", "connections_mapping.csv")
+    folder_access_csv = csv_dir / "folder_access_mapping.csv"
 
     folder_rows = _read_csv(folders_csv)
     user_rows = _read_csv(users_csv)
     connection_rows = _read_csv(connections_csv)
+    folder_access_rows = _read_csv(folder_access_csv) if folder_access_csv.exists() else []
 
     pbi_client = PbiClientFactory.from_args(_make_factory_args(args))
 
@@ -333,7 +403,10 @@ def main() -> int:
         dry_run=args.dry_run,
     )
 
-    user_assignments = _parse_user_assignments(user_rows)
+    user_assignments = (
+        _parse_workspace_assignments(folder_rows, user_rows, folder_access_rows)
+        if folder_access_rows else _parse_user_assignments(user_rows)
+    )
 
     auth_flags = _build_migrate_auth_flags(args)
 

@@ -34,6 +34,29 @@ Reference index: [README.md](README.md)
 
 ---
 
+## 📁 Folder-to-Workspace Access Mapping
+
+PBIRS folder/report permissions cannot be reproduced as item-level permissions inside a single Power BI workspace. The supported automated pattern is to split PBIRS folders into separate target workspaces and apply the effective PBIRS access for each folder subtree to that workspace.
+
+`--assess` and `--export` generate the planning CSVs for this flow:
+
+| CSV | Purpose |
+|-----|---------|
+| `folders_mapping.csv` | Map each PBIRS folder path to a `target_workspace` |
+| `users_mapping.csv` | Map each PBIRS principal to `target_azure_ad` |
+| `folder_access_mapping.csv` | Shows the effective principals and roles per PBIRS folder; used to scope workspace permissions |
+
+When `folder_access_mapping.csv` is present, `scripts/csv_to_pbi_online_import.py` applies permissions per target workspace instead of applying every mapped user to every workspace. It resolves the target workspace by longest matching `folder_path` from `folders_mapping.csv`, then uses `users_mapping.csv` for the Azure AD identity.
+
+Example:
+
+| PBIRS folder | target workspace | Effective access applied |
+|--------------|------------------|--------------------------|
+| `/Finance` | `Finance Reports` | Only Finance principals from `folder_access_mapping.csv` |
+| `/HR` | `HR Reports` | Only HR principals from `folder_access_mapping.csv` |
+
+---
+
 ## 🧠 Migration Considerations
 
 1. **Granularity loss** — PBIRS item-level permissions flatten to workspace-level
@@ -49,7 +72,7 @@ Reference index: [README.md](README.md)
 
 ## 💡 Recommendations
 
-- Review the permission mapping CSV (`mapping_generator` output) before importing
+- Review `folder_access_mapping.csv` before importing so workspace permissions match the folder split
 - Group reports by access pattern into separate PBI workspaces
 - Use **PBI Apps** to publish curated views with specific audiences
 - Implement **RLS** for data-level security previously handled by item permissions
