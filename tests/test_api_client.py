@@ -45,6 +45,36 @@ class TestPBIRSClient:
         info = client.get_system_info()
         assert info["ProductName"] == "PBIRS"
 
+    def test_get_system_policies_accepts_odata_value_envelope(self):
+        policies = [
+            {
+                "GroupUserName": "DOMAIN\\Admins",
+                "Roles": [{"Name": "System Administrator"}],
+            },
+        ]
+        client = PBIRSClient("https://pbirs.local/reports", token="tok")
+        client._get = MagicMock(return_value={"@odata.context": "metadata", "value": policies})
+
+        assert client.get_system_policies() == policies
+
+    def test_get_item_policy_details_preserves_inheritance_flag(self):
+        policies = [
+            {
+                "GroupUserName": "DOMAIN\\Readers",
+                "Roles": [{"Name": "Browser"}],
+            },
+        ]
+        client = PBIRSClient("https://pbirs.local/reports", token="tok")
+        client._get = MagicMock(return_value={
+            "InheritParentPolicy": True,
+            "Policies": policies,
+        })
+
+        assert client.get_item_policy_details("item-1") == {
+            "policies": policies,
+            "inherit_parent_policy": True,
+        }
+
     @patch("urllib.request.urlopen")
     def test_list_catalog_items(self, mock_urlopen):
         items = [{"Id": "1", "Name": "Report1", "Type": "PowerBIReport"}]

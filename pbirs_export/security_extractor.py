@@ -92,8 +92,13 @@ class SecurityExtractor:
             item_path = item.get("Path", "")
             parent_path = "/".join(item_path.rstrip("/").split("/")[:-1]) or "/"
             policies = item.get("policies", [])
+            inherit_parent_policy = item.get("inherit_parent_policy")
 
-            breaks = len(policies) > 0
+            breaks = (
+                not inherit_parent_policy
+                if isinstance(inherit_parent_policy, bool)
+                else len(policies) > 0
+            )
             inheritance[item_path] = {
                 "item_id": item_id,
                 "parent_path": parent_path,
@@ -191,11 +196,12 @@ class SecurityExtractor:
         for item in items:
             item_path = item.get("Path", "")
             policies = item.get("policies", [])
+            inherit_parent_policy = item.get("inherit_parent_policy")
 
             if policies:
-                # Item has its own policies
+                # PBIRS returns resolved policies even when they are inherited.
                 resolved_policies = policies
-                source = "direct"
+                source = "inherited" if inherit_parent_policy is True else "direct"
             else:
                 # Inherit from nearest parent with policies
                 resolved_policies = self._find_inherited_policies(

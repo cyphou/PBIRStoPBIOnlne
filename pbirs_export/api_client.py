@@ -369,15 +369,26 @@ class PBIRSClient:
     # Policies (Permissions)
     # ------------------------------------------------------------------
 
+    def get_item_policy_details(self, item_id: str) -> dict[str, Any]:
+        """Get item policies together with the PBIRS inheritance flag."""
+        result = self._get(f"CatalogItems({item_id})/Policies")
+        if isinstance(result, list):
+            return {"policies": result, "inherit_parent_policy": None}
+        return {
+            "policies": result.get("Policies", result.get("value", [])),
+            "inherit_parent_policy": result.get("InheritParentPolicy"),
+        }
+
     def get_item_policies(self, item_id: str) -> list[dict]:
         """Get security policies (role assignments) for an item."""
-        result = self._get(f"CatalogItems({item_id})/Policies")
-        return result.get("Policies", result if isinstance(result, list) else [])
+        return self.get_item_policy_details(item_id)["policies"]
 
     def get_system_policies(self) -> list[dict]:
         """Get system-level security policies."""
         result = self._get("System/Policies")
-        return result.get("Policies", result if isinstance(result, list) else [])
+        if isinstance(result, list):
+            return result
+        return result.get("Policies", result.get("value", []))
 
     # ------------------------------------------------------------------
     # Cache refresh plans

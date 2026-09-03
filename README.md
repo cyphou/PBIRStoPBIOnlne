@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | 🏷️ **Version** | 1.8.0 |
-| ✅ **Tests** | 558 passed · 37 test files |
+| ✅ **Tests** | 569 passed · 37 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -268,6 +268,40 @@ python migrate.py --server https://pbirs.company.com/reports --assess --token "$
 python migrate.py --server https://pbirs.company.com/reports --assess --username "$env:PBIRS_USERNAME" --password "$env:PBIRS_PASSWORD"
 ```
 
+#### Connectivity check (no writes)
+
+First, verify that the PBIRS REST API is reachable with your current Windows identity:
+
+```powershell
+$server = "http://localhost/Reports"
+Invoke-RestMethod `
+    -Uri "$server/api/v2.0/System" `
+    -UseDefaultCredentials `
+    -AllowUnencryptedAuthentication |
+    Select-Object ProductName, ProductVersion
+```
+
+`-AllowUnencryptedAuthentication` is only appropriate for a local HTTP test server. Use HTTPS for production PBIRS servers.
+
+Then run the migration tool's read-only preflight check:
+
+```powershell
+$credential = Get-Credential
+$env:PBIRS_USERNAME = $credential.UserName
+$env:PBIRS_PASSWORD = $credential.GetNetworkCredential().Password
+try {
+    python migrate.py `
+        --server http://localhost/Reports `
+        --preflight `
+        --use-windows-auth `
+        --verbose
+} finally {
+    Remove-Item Env:PBIRS_PASSWORD -ErrorAction SilentlyContinue
+}
+```
+
+A successful PBIRS-only check reports `pbirs.connection` as successful. PBI authentication, workspace, gateway, and folder-map checks are skipped unless their corresponding options are supplied. Preflight exits without exporting, importing, or changing server content.
+
 If the API opens in a browser but the CLI returns `HTTP 401 Unauthorized`, the browser is likely sending your Windows identity automatically. Use the Windows-auth flow above or provide a valid `PBIRS_TOKEN`.
 
 ### Phases
@@ -279,6 +313,7 @@ If the API opens in a browser but the CLI returns `HTTP 401 Unauthorized`, the b
 | `--import` | Import converted content to PBI Online |
 | `--validate` | Validate deployed content |
 | `--full` | Run all 5 phases end-to-end |
+| `--preflight` | Check connectivity and configuration, then exit without writes |
 
 ### Output
 | Flag | Description |
@@ -457,7 +492,7 @@ PBIReporttoPBIOnline/
 │       ├── pbi_client.py           #     PBI REST API wrapper
 │       ├── fabric_client.py        #     Fabric REST API wrapper
 │       └── config.py               #     Environment configuration
-├── tests/                          # 558 tests across 37 files
+├── tests/                          # 569 tests across 37 files
 ├── scripts/                        # Utility scripts
 ├── docs/                           # Full documentation suite
 └── examples/                       # Example configurations

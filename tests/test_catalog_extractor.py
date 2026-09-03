@@ -27,6 +27,24 @@ class TestCatalogExtractor:
         result = extractor.extract_catalog()
         assert result["total_count"] == 2
 
+    def test_extract_preserves_policy_inheritance(self, mock_pbirs_client):
+        mock_pbirs_client.list_catalog_items.return_value = [
+            {"Id": "1", "Name": "Report A", "Path": "/Folder/Report A", "Type": "PowerBIReport"},
+        ]
+        mock_pbirs_client.get_powerbi_report_datasources.return_value = []
+        mock_pbirs_client.get_item_policy_details.return_value = {
+            "policies": [
+                {"GroupUserName": "DOMAIN\\Readers", "Roles": [{"Name": "Browser"}]},
+            ],
+            "inherit_parent_policy": True,
+        }
+        mock_pbirs_client.list_subscriptions.return_value = []
+        mock_pbirs_client.list_cache_refresh_plans.return_value = []
+
+        result = CatalogExtractor(mock_pbirs_client).extract_catalog()
+
+        assert result["items"][0]["inherit_parent_policy"] is True
+
     def test_filter_content_types(self, mock_pbirs_client):
         mock_pbirs_client.list_catalog_items.return_value = [
             {"Id": "1", "Name": "Report", "Path": "/Report", "Type": "PowerBIReport"},

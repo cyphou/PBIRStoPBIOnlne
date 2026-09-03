@@ -41,6 +41,23 @@ class TestSecurityExtractor:
         assert imap["/Finance/R1"]["breaks_inheritance"] is True
         assert imap["/Finance/R2"]["breaks_inheritance"] is False
 
+    def test_inherited_resolved_policies_do_not_break_inheritance(self, mock_client):
+        items = [
+            {
+                "Id": "1", "Name": "R1", "Path": "/Finance/R1", "Type": "PowerBIReport",
+                "policies": [
+                    {"GroupUserName": "DOMAIN\\Readers", "Roles": [{"Name": "Browser"}]},
+                ],
+                "inherit_parent_policy": True,
+                "datasources": [],
+            },
+        ]
+
+        result = SecurityExtractor(mock_client).extract_all({"items": items, "folders": []})
+
+        assert result["inheritance_map"]["/Finance/R1"]["breaks_inheritance"] is False
+        assert result["effective_permissions"][0]["source"] == "inherited"
+
     def test_principal_enumeration(self, mock_client):
         items = [
             {

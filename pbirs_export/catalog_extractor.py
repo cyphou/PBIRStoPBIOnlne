@@ -110,7 +110,13 @@ class CatalogExtractor:
 
         # Get policies
         try:
-            item["policies"] = self.client.get_item_policies(item_id)
+            details_getter = getattr(self.client, "get_item_policy_details", None)
+            details = details_getter(item_id) if callable(details_getter) else None
+            if isinstance(details, dict):
+                item["policies"] = details.get("policies", [])
+                item["inherit_parent_policy"] = details.get("inherit_parent_policy")
+            else:
+                item["policies"] = self.client.get_item_policies(item_id)
         except Exception as e:
             logger.debug("Could not get policies for %s: %s", item.get("Name"), e)
             item["policies"] = []
