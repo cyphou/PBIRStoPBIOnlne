@@ -4,6 +4,7 @@ import json
 import urllib.error
 import pytest
 from unittest.mock import patch, MagicMock
+import pbirs_export.api_client as api_client
 from pbirs_export.api_client import PBIRSClient
 
 
@@ -21,15 +22,39 @@ class TestPBIRSClient:
     def test_init_loads_auth_from_environment(self, monkeypatch):
         monkeypatch.setenv("PBIRS_USERNAME", "DOMAIN\\migration.user")
         monkeypatch.setenv("PBIRS_PASSWORD", "secret")
+        monkeypatch.setenv("PBIRS_CA_BUNDLE", "C:/certs/corp-root.pem")
+        monkeypatch.setenv("PBIRS_USE_WINDOWS_CERT_STORE", "true")
 
         client = PBIRSClient("https://pbirs.local/reports", use_windows_auth=True)
 
         assert client.username == "DOMAIN\\migration.user"
         assert client.password == "secret"
+        assert client.ca_bundle == "C:/certs/corp-root.pem"
+        assert client.use_windows_cert_store is True
 
     def test_init_strips_trailing_slash(self):
         client = PBIRSClient("https://pbirs.local/reports/", use_windows_auth=True)
         assert client._base_url == "https://pbirs.local/reports/api/v2.0"
+
+    def test_windows_cert_store_defaults_on_windows(self, monkeypatch):
+        monkeypatch.delenv("PBIRS_USE_WINDOWS_CERT_STORE", raising=False)
+        monkeypatch.setattr(api_client.os, "name", "nt")
+
+        client = PBIRSClient("https://pbirs.local/reports", use_windows_auth=True)
+
+        assert client.use_windows_cert_store is True
+
+    def test_windows_cert_store_can_be_disabled(self, monkeypatch):
+        monkeypatch.delenv("PBIRS_USE_WINDOWS_CERT_STORE", raising=False)
+        monkeypatch.setattr(api_client.os, "name", "nt")
+
+        client = PBIRSClient(
+            "https://pbirs.local/reports",
+            use_windows_auth=True,
+            use_windows_cert_store=False,
+        )
+
+        assert client.use_windows_cert_store is False
 
     @patch("urllib.request.urlopen")
     def test_get_system_info(self, mock_urlopen):
@@ -128,3 +153,40 @@ class TestPBIRSClient:
 
         with pytest.raises(PermissionError, match=r"DOMAIN\\user"):
             client.list_catalog_items()
+
+    def test_ntlm_request_uses_ca_bundle(self):
+        client = PBIRSClient(
+            "https://pbirs.local/reports",
+            token="tok",
+            use_windows_auth=True,
+            ca_bundle="C:/certs/corp-root.pem",
+        )
+        response = MagicMock(status_code=200, text='{"value": []}')
+        response.raise_for_status.return_value = None
+        response.json.return_value = {"value": []}
+        client._session = MagicMock()
+        client._session.request.return_value = response
+
+        assert client.list_catalog_items() == []
+
+        _, _, kwargs = client._session.request.mock_calls[0]
+        assert kwargs["verify"] == "C:/certs/corp-root.pem"
+
+    def test_ntlm_request_can_use_windows_cert_store(self):
+        client = PBIRSClient(
+            "https://pbirs.local/reports",
+            token="tok",
+            use_windows_auth=True,
+            use_windows_cert_store=True,
+        )
+        client._get_windows_ca_bundle = MagicMock(return_value="C:/Temp/windows-ca.pem")
+        response = MagicMock(status_code=200, text='{"value": []}')
+        response.raise_for_status.return_value = None
+        response.json.return_value = {"value": []}
+        client._session = MagicMock()
+        client._session.request.return_value = response
+
+        assert client.list_catalog_items() == []
+
+        _, _, kwargs = client._session.request.mock_calls[0]
+        assert kwargs["verify"] == "C:/Temp/windows-ca.pem"

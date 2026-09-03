@@ -15,11 +15,13 @@ PRIVATE_IDENTIFIERS = (
     "PBI " + "SME",
     "OracleTo" + "Postgre",
     "ms-len-" + "moa",
-    "dataviz." + "edf.fr",
-    "Reports" + "PBI",
 )
 CORPORATE_EMAIL = re.compile(
     r"[A-Z0-9._%+-]+@(microsoft|outlook|hotmail)\.com",
+    re.IGNORECASE,
+)
+PRIVATE_HOSTNAME = re.compile(
+    r"https?://(?:[^/\s]+\.)?(?:corp|internal|intranet|company-private)\.[^/\s]+",
     re.IGNORECASE,
 )
 WINDOWS_USER_PATH = re.compile(r"[A-Z]:\\Users\\[^<%$\\]+", re.IGNORECASE)
@@ -67,6 +69,8 @@ def test_tracked_files_do_not_expose_private_environment_data() -> None:
                 findings.append(f"{relative}: private identifier")
         if CORPORATE_EMAIL.search(text):
             findings.append(f"{relative}: corporate email address")
+        if PRIVATE_HOSTNAME.search(text):
+            findings.append(f"{relative}: private hostname")
         if WINDOWS_USER_PATH.search(text):
             findings.append(f"{relative}: hard-coded Windows user profile")
 

@@ -179,7 +179,7 @@ function New-RDL {
     End Function
   </Code>
 "@ } else { "" }
-    $imageXml = if ($HasExternalImages) { '<Image Name="Logo"><Source>External</Source><Value>https://corp.local/images/logo_entreprise.png</Value><Sizing>FitProportional</Sizing><Top>0cm</Top><Left>12cm</Left><Height>2cm</Height><Width>4cm</Width></Image>' } else { "" }
+    $imageXml = if ($HasExternalImages) { '<Image Name="Logo"><Source>External</Source><Value>https://assets.example.com/images/logo_entreprise.png</Value><Sizing>FitProportional</Sizing><Top>0cm</Top><Left>12cm</Left><Height>2cm</Height><Width>4cm</Width></Image>' } else { "" }
     $drillXml = if ($HasDrillthrough) { @"
             <ActionInfo><Actions><Action>
               <Drillthrough>
@@ -324,7 +324,7 @@ $dsDefs = @(
     @{ Name = "Oracle_ERP_Legacy";       Parent = "/Département Finance"; ConnStr = "Data Source=oracle-erp.corp.local:1521/ERPDB"; Ext = "ORACLE"; Desc = "Oracle ERP — système hérité" }
     @{ Name = "SQL_RH_Confidentiel";     Parent = "/RH - Ressources Humaines"; ConnStr = "Data Source=sql-hr.corp.local;Initial Catalog=HRDB;Encrypt=true"; Ext = "SQL"; Desc = "Base RH — données confidentielles" }
     @{ Name = "Analysis_Services_Cube";  Parent = "/Direction Générale"; ConnStr = "Data Source=ssas-prod.corp.local;Initial Catalog=EnterpriseCube"; Ext = "OLEDB-MD"; Desc = "Cube SSAS multidimensionnel" }
-    @{ Name = "SharePoint_Liste";        Parent = "/Contrôle Qualité"; ConnStr = "https://sharepoint.corp.local/sites/quality"; Ext = "XML"; Desc = "Liste SharePoint — non-conformités" }
+    @{ Name = "SharePoint_Liste";        Parent = "/Contrôle Qualité"; ConnStr = "https://sharepoint.example.com/sites/quality"; Ext = "XML"; Desc = "Liste SharePoint — non-conformités" }
     @{ Name = "PostgreSQL_Analytics";    Parent = "/IT Operations"; ConnStr = "Host=pg-analytics.corp.local;Database=monitoring;Port=5432"; Ext = "SQL"; Desc = "PostgreSQL — monitoring infra (via ODBC)" }
 )
 

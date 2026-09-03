@@ -54,6 +54,45 @@ def _run_cli(argv, monkeypatch, fake_pbirs_client, fake_pbi_client):
 
 
 class TestCliWiring:
+    def test_windows_auth_prompts_for_missing_credentials(self, monkeypatch):
+        args = type("NS", (), {
+            "use_windows_auth": True,
+            "token": None,
+            "username": None,
+            "password": None,
+        })()
+        monkeypatch.delenv("PBIRS_TOKEN", raising=False)
+        monkeypatch.delenv("PBIRS_USERNAME", raising=False)
+        monkeypatch.delenv("PBIRS_PASSWORD", raising=False)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+        monkeypatch.setattr("builtins.input", lambda prompt: "DOMAIN\\user")
+        monkeypatch.setattr(migrate.getpass, "getpass", lambda prompt: "secret")
+
+        migrate._populate_pbirs_credentials(args)
+
+        assert args.username == "DOMAIN\\user"
+        assert args.password == "secret"
+
+    def test_windows_auth_does_not_prompt_noninteractive(self, monkeypatch):
+        args = type("NS", (), {
+            "use_windows_auth": True,
+            "token": None,
+            "username": None,
+            "password": None,
+        })()
+        monkeypatch.delenv("PBIRS_TOKEN", raising=False)
+        monkeypatch.delenv("PBIRS_USERNAME", raising=False)
+        monkeypatch.delenv("PBIRS_PASSWORD", raising=False)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+        prompt = MagicMock()
+        monkeypatch.setattr("builtins.input", prompt)
+
+        migrate._populate_pbirs_credentials(args)
+
+        prompt.assert_not_called()
+        assert args.username is None
+        assert args.password is None
+
     def test_assess_only_succeeds(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
         rc = _run_cli(
             ["--server", "http://x", "--assess", "--output-dir", str(tmp_path)],

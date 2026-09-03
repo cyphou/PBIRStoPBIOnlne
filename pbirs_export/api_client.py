@@ -11,6 +11,8 @@ import base64
 import json
 import logging
 import os
+import ssl
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -47,12 +49,28 @@ class PBIRSClient:
         password: str | None = None,
         token: str | None = None,
         use_windows_auth: bool = False,
+        ca_bundle: str | None = None,
+        use_windows_cert_store: bool | None = None,
     ):
         self.server_url = server_url.rstrip("/")
         self.username = username or os.environ.get("PBIRS_USERNAME")
         self.password = password or os.environ.get("PBIRS_PASSWORD")
         self.token = token or os.environ.get("PBIRS_TOKEN")
         self.use_windows_auth = use_windows_auth
+        cert_store_env = os.environ.get("PBIRS_USE_WINDOWS_CERT_STORE")
+        if cert_store_env is not None:
+            self.use_windows_cert_store = cert_store_env.lower() in {"1", "true", "yes"}
+        elif use_windows_cert_store is not None:
+            self.use_windows_cert_store = use_windows_cert_store
+        else:
+            self.use_windows_cert_store = os.name == "nt"
+        self.ca_bundle = (
+            ca_bundle
+            or os.environ.get("PBIRS_CA_BUNDLE")
+            or os.environ.get("REQUESTS_CA_BUNDLE")
+            or os.environ.get("SSL_CERT_FILE")
+        )
+        self._windows_ca_bundle: str | None = None
         self._base_url = f"{self.server_url}/api/{self.API_VERSION}"
         self._session_cookie: str | None = None
         self._session: Any = None  # requests.Session when using NTLM
@@ -121,7 +139,8 @@ class PBIRSClient:
         req = urllib.request.Request(url, data=body, headers=headers, method=method)
 
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            context = self._ssl_context()
+            with urllib.request.urlopen(req, timeout=60, context=context) as resp:
                 # Capture session cookie
                 cookie = resp.headers.get("Set-Cookie")
                 if cookie:
@@ -164,12 +183,59 @@ class PBIRSClient:
             "or provide --token or --username/--password."
         )
 
+    def _ssl_context(self) -> ssl.SSLContext | None:
+        if self.ca_bundle:
+            return ssl.create_default_context(cafile=self.ca_bundle)
+        if self.use_windows_cert_store:
+            return ssl.create_default_context(cafile=self._get_windows_ca_bundle())
+        return None
+
+    def _requests_verify(self) -> str | bool:
+        if self.ca_bundle:
+            return self.ca_bundle
+        if self.use_windows_cert_store:
+            return self._get_windows_ca_bundle()
+        return True
+
+    def _get_windows_ca_bundle(self) -> str:
+        """Build a temporary PEM bundle from Windows ROOT and CA stores."""
+        if self._windows_ca_bundle:
+            return self._windows_ca_bundle
+
+        certificates: list[str] = []
+        for store_name in ("ROOT", "CA"):
+            try:
+                for cert_bytes, encoding, trust in ssl.enum_certificates(store_name):
+                    if trust is True or "1.3.6.1.5.5.7.3.1" in trust:
+                        if encoding == "x509_asn":
+                            certificates.append(ssl.DER_cert_to_PEM_cert(cert_bytes))
+                        elif encoding == "x509_pem":
+                            certificates.append(cert_bytes.decode("ascii"))
+            except OSError:
+                continue
+
+        if not certificates:
+            raise RuntimeError("No certificates were found in the Windows certificate store")
+
+        handle = tempfile.NamedTemporaryFile(
+            "w",
+            encoding="ascii",
+            prefix="pbirs-windows-ca-",
+            suffix=".pem",
+            delete=False,
+        )
+        with handle:
+            handle.write("\n".join(certificates))
+        self._windows_ca_bundle = handle.name
+        return self._windows_ca_bundle
+
     def _request_ntlm(
         self, method: str, url: str, data: dict | None, raw: bool
     ) -> Any:
         """Execute request using requests-ntlm for Windows authentication."""
         headers = {"Accept": "application/json"}
         kwargs: dict[str, Any] = {"headers": headers, "timeout": 60}
+        kwargs["verify"] = self._requests_verify()
         if data is not None:
             headers["Content-Type"] = "application/json"
             kwargs["json"] = data

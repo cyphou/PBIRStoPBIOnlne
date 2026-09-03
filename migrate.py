@@ -11,6 +11,7 @@ CLI entry point for the 5-phase migration pipeline:
 """
 
 import argparse
+import getpass
 import json
 import logging
 import os
@@ -70,6 +71,30 @@ def _merge_config(args: argparse.Namespace, config: dict) -> argparse.Namespace:
     return args
 
 
+def _populate_pbirs_credentials(args: argparse.Namespace) -> None:
+    """Prompt for missing PBIRS Windows credentials during interactive runs."""
+    if not getattr(args, "use_windows_auth", False):
+        return
+    if getattr(args, "token", None) or os.environ.get("PBIRS_TOKEN"):
+        return
+
+    username = getattr(args, "username", None) or os.environ.get("PBIRS_USERNAME")
+    password = getattr(args, "password", None) or os.environ.get("PBIRS_PASSWORD")
+    if username and password:
+        return
+    if not sys.stdin.isatty():
+        return
+
+    if not username:
+        username = input("PBIRS username (DOMAIN\\user): ").strip()
+        if username:
+            setattr(args, "username", username)
+    if not password:
+        password = getpass.getpass("PBIRS password: ")
+        if password:
+            setattr(args, "password", password)
+
+
 # ---------------------------------------------------------------------------
 # Phase implementations
 # ---------------------------------------------------------------------------
@@ -88,6 +113,8 @@ def _run_assessment(args: argparse.Namespace, logger: logging.Logger) -> int:
         password=getattr(args, "password", None),
         token=getattr(args, "token", None),
         use_windows_auth=getattr(args, "use_windows_auth", False),
+        ca_bundle=getattr(args, "pbirs_ca_bundle", None),
+        use_windows_cert_store=getattr(args, "use_windows_cert_store", False),
     )
 
     extractor = CatalogExtractor(client)
@@ -158,6 +185,8 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
         password=getattr(args, "password", None),
         token=getattr(args, "token", None),
         use_windows_auth=getattr(args, "use_windows_auth", False),
+        ca_bundle=getattr(args, "pbirs_ca_bundle", None),
+        use_windows_cert_store=getattr(args, "use_windows_cert_store", False),
     )
 
     _, output_dir = _phase_dirs(args, "export")
@@ -1046,6 +1075,8 @@ def _run_sync_daemon(args: argparse.Namespace, logger: logging.Logger) -> int:
         password=getattr(args, "password", None),
         token=getattr(args, "token", None),
         use_windows_auth=getattr(args, "use_windows_auth", False),
+        ca_bundle=getattr(args, "pbirs_ca_bundle", None),
+        use_windows_cert_store=getattr(args, "use_windows_cert_store", False),
     )
     tracker = DeltaTracker(str(root / ".migration_state.db"))
 
@@ -1420,6 +1451,16 @@ Examples:
         action="store_true",
         help="Use NTLM auth (credentials from flags or PBIRS_USERNAME/PBIRS_PASSWORD)",
     )
+    conn.add_argument(
+        "--pbirs-ca-bundle",
+        help="PEM CA bundle for PBIRS TLS verification (env: PBIRS_CA_BUNDLE)",
+    )
+    conn.add_argument(
+        "--use-windows-cert-store",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Use Windows trusted root/intermediate certificates for PBIRS TLS verification (default on Windows)",
+    )
 
     # PBI Online auth
     auth = p.add_argument_group("PBI Online Auth")
@@ -1593,6 +1634,8 @@ def main() -> int:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Error loading config: {e}", file=sys.stderr)
             return ExitCode.CONFIG_ERROR
+
+    _populate_pbirs_credentials(args)
 
     logger = _setup_logging(args.verbose, getattr(args, "log_file", None))
 

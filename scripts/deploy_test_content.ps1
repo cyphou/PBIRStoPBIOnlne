@@ -167,7 +167,7 @@ $dataSources = @(
     @{
         Name    = "SharePoint_Liste"
         Folder  = "Contrôle Qualité"
-        ConnStr = "https://sharepoint.corp.local/sites/quality"
+        ConnStr = "https://sharepoint.example.com/sites/quality"
         Type    = "XML"
         Desc    = "Liste SharePoint — non-conformités"
     }
@@ -251,7 +251,7 @@ function New-RDL {
     } else { "" }
 
     $imageXml = if ($HasExternalImages) {
-        '<Image Name="Logo"><Source>External</Source><Value>https://corp.local/images/logo.png</Value></Image>'
+        '<Image Name="Logo"><Source>External</Source><Value>https://assets.example.com/images/logo.png</Value></Image>'
     } else { "" }
 
     $drillXml = if ($HasDrillthrough) {

@@ -61,6 +61,8 @@ class PreflightRunner:
                 password=getattr(self.args, "password", None),
                 token=getattr(self.args, "token", None),
                 use_windows_auth=getattr(self.args, "use_windows_auth", False),
+                ca_bundle=getattr(self.args, "pbirs_ca_bundle", None),
+                use_windows_cert_store=getattr(self.args, "use_windows_cert_store", False),
             )
             info = client.get_system_info()
             result.add("pbirs.connection", "ok", str(info.get("ProductName", "PBIRS")))
