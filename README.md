@@ -9,7 +9,7 @@
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
-| 🎯 **Capabilities** | 11 content types · 9 assessment categories · 5-phase pipeline · 6 subscription converters |
+| 🎯 **Capabilities** | 11 content types · 8 assessment categories · 5-phase pipeline · 6 subscription converters |
 
 ---
 
@@ -126,9 +126,9 @@ Power BI reports, paginated reports, datasets, KPIs, mobile reports, linked repo
 </td>
 <td width="50%">
 
-### 📊 9-Category Assessment
-Scores each item across **9 readiness categories**:
-datasource compatibility, report complexity, security model, gateway requirements, paginated features, subscription migration, capacity requirements, data model, custom visuals
+### 📊 8-Category Assessment
+Scores each item across **8 readiness categories**:
+datasource compatibility, report complexity, security model, gateway requirements, paginated features, subscription migration, data model, custom visuals
 
 </td>
 </tr>
@@ -221,7 +221,7 @@ flowchart LR
     style F fill:#2EA043,color:#fff,stroke:#2EA043
 ```
 
-**🔍 Phase 1 — Assess:** Inventories PBIRS content, scores readiness across 9 categories, generates HTML report
+**🔍 Phase 1 — Assess:** Inventories PBIRS content, scores readiness across 8 categories, generates HTML report
 
 **📦 Phase 2 — Export:** Downloads content files (.pbix, .rdl, .rsd), extracts metadata (datasources, permissions, subscriptions, security)
 
@@ -396,16 +396,15 @@ See:
 
 ## 📊 Assessment Scoring
 
-### Per-Item (9 Categories)
+### Per-Item (8 Categories)
 1. **Datasource Compatibility** — On-prem vs cloud readiness
 2. **Report Complexity** — Page/visual count, DAX complexity
 3. **Security Model** — RLS/OLS/SSRS role mapping
 4. **Gateway Requirements** — On-prem data gateway needs
 5. **Paginated Features** — RDL feature support in PBI Online
 6. **Subscription Migration** — Email/file-share/data-driven mapping
-7. **Capacity Requirements** — Capacity and licensing fit (Pro/PPU vs capacity-backed free consumption)
-8. **Data Model** — DirectQuery/Import/Composite compatibility
-9. **Custom Visuals** — Org visual gallery mapping
+7. **Data Model** — DirectQuery/Import/Composite compatibility
+8. **Custom Visuals** — Org visual gallery mapping
 
 ### Portfolio Grading
 - 🟢 **GREEN** — Default status when no blocking complexity indicator is detected

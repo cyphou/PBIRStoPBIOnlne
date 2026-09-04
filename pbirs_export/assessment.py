@@ -1,7 +1,7 @@
 """
 Migration Readiness Assessment.
 
-Scores PBIRS content across 9 categories to determine migration readiness
+Scores PBIRS content across 8 categories to determine migration readiness
 and generate migration wave plans.
 """
 
@@ -19,9 +19,6 @@ RED = "RED"
 
 class MigrationAssessment:
     """Assess PBIRS content for PBI Online migration readiness."""
-
-    # Content types that require Premium/PPU capacity
-    PREMIUM_REQUIRED_TYPES = {"Report", "LinkedReport"}  # Paginated reports
 
     # SSRS features not fully supported in PBI Online paginated reports
     UNSUPPORTED_RDL_FEATURES = {
@@ -53,7 +50,7 @@ class MigrationAssessment:
         }
 
     def _assess_item(self, item: dict) -> dict:
-        """Assess a single catalog item across 9 categories."""
+        """Assess a single catalog item across 8 categories."""
         scores: dict[str, dict] = {}
         item_type = item.get("Type", "Unknown")
 
@@ -63,7 +60,6 @@ class MigrationAssessment:
         scores["gateway_requirements"] = self._score_gateway(item)
         scores["paginated_features"] = self._score_paginated(item)
         scores["subscription_migration"] = self._score_subscriptions(item)
-        scores["capacity_requirements"] = self._score_capacity(item)
         scores["data_model"] = self._score_data_model(item)
         scores["custom_visuals"] = self._score_custom_visuals(item)
 
@@ -102,6 +98,8 @@ class MigrationAssessment:
 
     def _score_complexity(self, item: dict) -> dict:
         """Score report complexity."""
+        if item.get("Type") in self.DEPRECATED_TYPES:
+            return {"score": RED, "details": "Mobile reports are deprecated — no PBI Online equivalent"}
         if item.get("custom_visuals"):
             return {"score": RED, "details": "Custom visuals require target-tenant compatibility review"}
         if item.get("subscriptions"):
@@ -199,14 +197,6 @@ class MigrationAssessment:
             return {"score": YELLOW, "details": f"{len(data_driven)} data-driven subscriptions (require manual recreation)"}
 
         return {"score": GREEN, "details": f"{len(subs)} email subscriptions — migratable"}
-
-    def _score_capacity(self, item: dict) -> dict:
-        """Score capacity requirements."""
-        if item.get("Type") in self.PREMIUM_REQUIRED_TYPES:
-            return {"score": YELLOW, "details": "Paginated report — requires Premium or PPU capacity"}
-        if item.get("Type") in self.DEPRECATED_TYPES:
-            return {"score": RED, "details": "Mobile reports are deprecated — no PBI Online equivalent"}
-        return {"score": GREEN, "details": "Standard capacity"}
 
     def _score_data_model(self, item: dict) -> dict:
         """Score data model compatibility."""

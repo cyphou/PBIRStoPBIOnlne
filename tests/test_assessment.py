@@ -31,7 +31,7 @@ class TestMigrationAssessment:
         assert result["summary"]["green"] == 1
         assert result["items"][0]["overall"] == GREEN
 
-    def test_assess_paginated_report_needs_capacity(self):
+    def test_assess_paginated_report_has_no_capacity_category(self):
         catalog = {
             "items": [{
                 "Id": "2",
@@ -46,7 +46,7 @@ class TestMigrationAssessment:
             }]
         }
         result = MigrationAssessment().assess(catalog)
-        assert result["items"][0]["scores"]["capacity_requirements"]["score"] == YELLOW
+        assert "capacity_requirements" not in result["items"][0]["scores"]
 
     def test_assess_file_share_subscription_red(self):
         catalog = {

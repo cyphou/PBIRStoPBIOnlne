@@ -60,9 +60,8 @@ Wave 1 = GREEN items (quick wins). Wave 2 = YELLOW items (minor adjustments). Wa
 4. Gateway requirements
 5. Paginated features
 6. Subscription migration
-7. Capacity requirements
-8. Data model
-9. Custom visuals
+7. Data model
+8. Custom visuals
 
 ---
 
