@@ -21,12 +21,9 @@ _NS = {
     "r16": "http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition",
 }
 
-# Features unsupported (or partially supported) in PBI Online paginated reports
+# Features unsupported in Power BI Service paginated reports
 UNSUPPORTED_FEATURES: dict[str, str] = {
-    "Code": "Custom VB.NET code blocks",
     "CodeModules": "Custom assembly references",
-    "CustomProperties": "Custom report properties (may be ignored)",
-    "Classes": "Custom class instances",
 }
 
 # Features that need Premium/PPU but are otherwise supported

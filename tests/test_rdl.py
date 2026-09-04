@@ -123,9 +123,9 @@ class TestRdlAnalyser:
     def test_unsupported_features(self, sample_rdl):
         result = RdlAnalyser(sample_rdl).analyse()
         feature_names = {f["feature"] for f in result["unsupported_features"]}
-        assert "Code" in feature_names
         assert "CodeModules" in feature_names
-        assert "Classes" in feature_names
+        assert "Code" not in feature_names
+        assert "Classes" not in feature_names
 
     def test_minimal_rdl_no_issues(self, minimal_rdl):
         result = RdlAnalyser(minimal_rdl).analyse()
@@ -137,14 +137,13 @@ class TestRdlAnalyser:
 
 class TestRdlModifier:
 
-    def test_strips_custom_code(self, sample_rdl, tmp_path):
+    def test_preserves_custom_code(self, sample_rdl, tmp_path):
         out = tmp_path / "modified.rdl"
         result = RdlModifier(sample_rdl).modify(out)
         assert result["change_count"] >= 1
-        # Verify the output has no <Code> element
         tree = ET.parse(out)
         code_els = list(tree.iter(f"{{{RDL_NS}}}Code"))
-        assert len(code_els) == 0
+        assert len(code_els) == 1
 
     def test_strips_assemblies(self, sample_rdl, tmp_path):
         out = tmp_path / "modified.rdl"
@@ -152,11 +151,11 @@ class TestRdlModifier:
         tree = ET.parse(out)
         assert len(list(tree.iter(f"{{{RDL_NS}}}CodeModules"))) == 0
 
-    def test_strips_classes(self, sample_rdl, tmp_path):
+    def test_preserves_classes(self, sample_rdl, tmp_path):
         out = tmp_path / "modified.rdl"
         RdlModifier(sample_rdl).modify(out)
         tree = ET.parse(out)
-        assert len(list(tree.iter(f"{{{RDL_NS}}}Classes"))) == 0
+        assert len(list(tree.iter(f"{{{RDL_NS}}}Classes"))) == 1
 
     def test_preserves_data_regions(self, sample_rdl, tmp_path):
         out = tmp_path / "modified.rdl"

@@ -54,7 +54,6 @@ class TestAssessmentEdgeCases:
         }
         result = MigrationAssessment().assess(catalog)
         score = result["items"][0]["scores"]["paginated_features"]
-        # Current code silently returns empty set when rdl_features is a list.
         # This test documents the bug: score should be RED but is GREEN.
         # Once fixed, flip assertion to RED.
         assert score["score"] in (GREEN, RED), "score must be deterministic"

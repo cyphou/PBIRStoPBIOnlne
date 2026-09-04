@@ -9,7 +9,7 @@ Reference index: [README.md](README.md)
 - [ ] **Run assessment** — `python migrate.py --server URL --assess`
 - [ ] **Review HTML report** — check GREEN/YELLOW/RED scores per item
 - [ ] **Identify licensing/capacity needs** — Pro/PPU for shared-workspace publishing; capacity needed for free-user consumption
-- [ ] **Analyze RDL features** — review `rdl_analysis.json` for custom code/assemblies
+- [ ] **Analyze RDL features** — review `rdl_analysis.json` for external assemblies, shared datasource/dataset references, linked reports, and custom fonts
 - [ ] **Set up data gateway** — install and configure on-premises data gateway
 - [ ] **Register Azure AD app** — service principal with PBI API permissions
 - [ ] **Create target workspace** — or let the tool create it during import
@@ -39,7 +39,7 @@ Reference index: [README.md](README.md)
 - [ ] Import and validate
 
 ### Wave 3 — Rework Required (🔴 RED items)
-- [ ] Strip custom VB.NET code from paginated reports (auto via `rdl_modifier`)
+- [ ] Preserve embedded VB.NET code; replace external assembly dependencies before publishing
 - [ ] Remove custom assemblies from paginated reports
 - [ ] Replace file-share subscriptions with Power Automate flows (auto-generated stubs)
 - [ ] Convert data-driven subscriptions (review conversion plans + CSV templates)

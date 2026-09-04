@@ -12,7 +12,7 @@ In practice:
 - Capacity (Fabric F64+ or Premium P1+) is required when free users consume shared content.
 
 > [!NOTE]
-> The tool's `rdl_analyser` and `rdl_modifier` modules automatically detect and strip unsupported features — no manual RDL editing required for most reports.
+> The tool detects unsupported external assemblies and file-share delivery. Embedded VB.NET code is retained because Power BI Service supports embedded report code; validate the result in the target tenant.
 
 ---
 
@@ -21,7 +21,7 @@ In practice:
 - **Pro or PPU** for publishing to shared workspaces
 - **Capacity (Fabric F64+ or Premium P1+)** for free-user consumption scenarios
 - **On-premises data gateway** if the report connects to on-prem data sources
-- RDL files must not use unsupported features (auto-stripped by `rdl_modifier`)
+- RDL files must not use unsupported external assemblies, shared `.rds/.rsd` dependencies, linked reports, or custom fonts.
 
 ---
 
@@ -33,24 +33,28 @@ In practice:
 | Charts | ✅ | Full support |
 | Parameters | ✅ | Full support |
 | Subreports | ✅ | Must be in same workspace — use `subreport_resolver` for import order |
-| Shared Datasets | ✅ | Must use PBI dataset as source |
+| Shared Datasets (.rsd) | ❌ | Not supported as SSRS shared datasets; use a Power BI semantic model or embedded datasource |
+| Shared Data Sources (.rds) | ❌ | Not supported as SSRS shared datasources; use an embedded or named Power BI connection |
 | Export (PDF, Excel, Word) | ✅ | Full support |
-| Email Subscriptions | ✅ | Auto-migrated |
+| Email Subscriptions | ✅ | Supported in Power BI Service; recreate or validate the target subscription |
 | Drillthrough | ✅ | Full support |
 | Embedded Images (DB) | ✅ | Supported |
 | Maps | ✅ | Bing Maps integration |
-| Custom Code (VB) | ❌ | Auto-stripped by `rdl_modifier` (v1.2) |
+| Embedded Custom Code (VB.NET) | ✅ | Supported when embedded in the report; external DLL code is not supported |
 | Custom Assemblies | ❌ | Auto-stripped by `rdl_modifier` (v1.2) |
-| Custom Classes | ❌ | Auto-stripped by `rdl_modifier` (v1.2) |
+| Custom Fonts | ❌ | Not supported in Power BI Service paginated reports |
+| Linked Reports | ❌ | Recreate as independent paginated reports or use another strategy |
+| Document Maps | ⚠️ | Do not render in the Power BI Service viewer; may render in exports |
 | File-Share Delivery | ❌ | Power Automate flow stubs auto-generated (v1.3) |
-| Data-Driven Subscriptions | ⚠️ | Conversion plans + CSV templates generated (v1.3) |
+| SSRS Data-Driven Subscriptions | ❌ | Use Power BI dynamic subscriptions instead |
+| Report Parts / Resources / KPIs / Mobile Reports | ❌ | Not migratable as equivalent Power BI Service items |
 
 ---
 
 ## 🚀 Migration Steps
 
 1. **Assess** — run assessment phase; check `paginated_features` and `rdl_analysis.json`
-2. **Auto-strip** — `rdl_modifier` removes custom code/assemblies/classes (with backup)
+2. **Auto-strip** — `rdl_modifier` removes external assemblies and unsupported file-share delivery references (with backup); embedded VB.NET code is preserved
 3. **Resolve subreports** — `subreport_resolver` computes safe import order
 4. **Export** — download .rdl files from PBIRS
 5. **Import** — publish to target workspace via PBI REST API
@@ -61,7 +65,7 @@ In practice:
 
 ## 🔧 Converting Custom Code
 
-If your RDL uses custom VB.NET code, the `rdl_modifier` auto-strips it. For replacement logic:
+Embedded VB.NET code is supported in Power BI Service paginated reports. External assembly DLL references are not supported and should be replaced with embedded code, SQL, Power Query, or an Azure Function. For replacement logic:
 
 | Original | Replacement |
 |----------|-------------|

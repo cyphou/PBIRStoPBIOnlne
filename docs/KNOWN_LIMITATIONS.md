@@ -20,9 +20,13 @@ Reference index: [README.md](README.md)
 
 | Area | Limitation | Status |
 |------|-----------|--------|
-| **Custom Code (VB.NET)** | Not supported in PBI Online | ✅ IMPROVED (v1.2) — `rdl_modifier` auto-strips with backup |
+| **Embedded Custom Code (VB.NET)** | Supported when embedded in the RDL; external DLL code is not supported | ✅ Updated — `rdl_modifier` preserves embedded code |
 | **Custom Assemblies** | Not supported in PBI Online | ✅ IMPROVED (v1.2) — `rdl_modifier` auto-strips |
-| **Custom Classes** | Not supported in PBI Online | ✅ IMPROVED (v1.2) — `rdl_modifier` auto-strips |
+| **Custom Fonts** | Not supported in PBI Online paginated reports | ✅ Documented — replace with supported fonts |
+| **Shared Data Sources (.rds)** | Not supported as SSRS shared datasources | ✅ Documented — convert to embedded/named connections |
+| **Shared Datasets (.rsd)** | Not supported as SSRS shared datasets | ✅ Documented — use a Power BI semantic model or embedded datasource |
+| **Linked Reports** | Not supported | ✅ Documented — recreate as independent reports |
+| **Document Maps** | Do not render in the Power BI Service viewer; may render in exports | ✅ Documented |
 | **Subreport Dependencies** | Complex dependency chains | ✅ IMPROVED (v1.2) — `subreport_resolver` computes safe import order |
 | **Circular Subreport Refs** | Circular dependencies can break one-pass paginated import order | ✅ IMPROVED (v1.8) — `SubreportResolver` now emits cycle groups + bootstrap order with automatic retry-pass mitigation used by `PaginatedPublisher` |
 
@@ -31,7 +35,7 @@ Reference index: [README.md](README.md)
 | Area | Limitation | Status |
 |------|-----------|--------|
 | **File-Share Delivery** | No file-share delivery in PBI Online | ✅ IMPROVED (v1.3) — Power Automate flow stubs auto-generated |
-| **Data-Driven Subscriptions** | Requires direct DB access for query-based recipients | ✅ IMPROVED (v1.3) — conversion plans + CSV templates generated |
+| **Data-Driven Subscriptions** | SSRS-style data-driven subscriptions are not supported; use Dynamic subscriptions | ✅ Updated — conversion plans + CSV templates generated |
 | **Data-Driven Query Extraction** | PBIRS REST API does not expose subscription queries | ✅ IMPROVED (v6.2) — optional ReportServer DB bridge enriches conversion plans (`--allow-db-query-bridge`) |
 
 ## Permissions

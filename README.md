@@ -137,7 +137,7 @@ datasource compatibility, report complexity, security model, gateway requirement
 
 ### 🧹 Automatic RDL Modification
 Strips **unsupported features** from paginated reports:
-custom VB.NET code, custom assemblies, custom classes — with change tracking and original backup
+external custom assemblies and unsupported file-share delivery references — with change tracking and original backup
 
 </td>
 <td>

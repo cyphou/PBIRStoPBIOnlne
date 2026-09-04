@@ -25,11 +25,7 @@ class MigrationAssessment:
 
     # SSRS features not fully supported in PBI Online paginated reports
     UNSUPPORTED_RDL_FEATURES = {
-        "CustomCode",
         "CustomAssembly",
-        "EmbeddedCode",
-        "DataDrivenSubscription",
-        "FileShareDelivery",
     }
 
     # Mobile reports are deprecated
@@ -106,6 +102,13 @@ class MigrationAssessment:
 
     def _score_complexity(self, item: dict) -> dict:
         """Score report complexity."""
+        if item.get("custom_visuals"):
+            return {"score": RED, "details": "Custom visuals require target-tenant compatibility review"}
+        if item.get("subscriptions"):
+            return {"score": RED, "details": "Subscriptions require explicit Power BI Online recreation"}
+        if self._has_rls(item):
+            return {"score": YELLOW, "details": "Row-Level Security detected — validate model roles"}
+
         item_type = item.get("Type", "")
         if item_type not in ("PowerBIReport", "Report"):
             return {"score": GREEN, "details": "N/A — not a report"}
@@ -119,6 +122,19 @@ class MigrationAssessment:
         if page_count > 20 or visual_count > 80:
             return {"score": YELLOW, "details": f"{page_count} pages, {visual_count} visuals — moderate complexity"}
         return {"score": GREEN, "details": f"{page_count} pages, {visual_count} visuals"}
+
+    @staticmethod
+    def _has_rls(item: dict) -> bool:
+        if item.get("has_rls"):
+            return True
+        for expression in item.get("dax_expressions", []):
+            text = str(expression).lower()
+            if "username()" in text or "userprincipalname()" in text:
+                return True
+        return any(
+            isinstance(ds, dict) and (ds.get("SecurityRoles") or ds.get("roles"))
+            for ds in item.get("datasources", [])
+        )
 
     def _score_security(self, item: dict) -> dict:
         """Score security model migration complexity."""
@@ -215,11 +231,10 @@ class MigrationAssessment:
     # ------------------------------------------------------------------
 
     def _compute_overall_score(self, scores: dict[str, dict]) -> str:
-        """Compute overall item score from category scores."""
-        all_scores = [s["score"] for s in scores.values()]
-        if RED in all_scores:
+        """Compute complexity status without conflating operational requirements."""
+        if any(detail.get("score") == RED for detail in scores.values()):
             return RED
-        if YELLOW in all_scores:
+        if scores.get("report_complexity", {}).get("score") == YELLOW:
             return YELLOW
         return GREEN
 
@@ -250,25 +265,28 @@ class MigrationAssessment:
         red_items = [i for i in assessed_items if i["overall"] == RED]
 
         waves = []
+        wave_number = 1
         if green_items:
             waves.append({
-                "wave": 1,
+            "wave": wave_number,
                 "name": "Quick Wins",
                 "description": "Fully compatible items — direct migration",
                 "items": [{"name": i["name"], "path": i["path"], "type": i["type"]} for i in green_items],
                 "count": len(green_items),
             })
+            wave_number += 1
         if yellow_items:
             waves.append({
-                "wave": 2,
+                "wave": wave_number,
                 "name": "Minor Adjustments",
                 "description": "Items requiring gateway binding, permission mapping, or capacity assignment",
                 "items": [{"name": i["name"], "path": i["path"], "type": i["type"]} for i in yellow_items],
                 "count": len(yellow_items),
             })
+            wave_number += 1
         if red_items:
             waves.append({
-                "wave": 3,
+                "wave": wave_number,
                 "name": "Rework Required",
                 "description": "Items with unsupported features requiring manual intervention",
                 "items": [{"name": i["name"], "path": i["path"], "type": i["type"]} for i in red_items],

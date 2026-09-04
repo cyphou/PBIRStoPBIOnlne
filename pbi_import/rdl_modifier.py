@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 class RdlModifier:
     """Remove unsupported features from an RDL file for PBI Online compatibility."""
 
-    # Tags that will be stripped entirely
-    STRIP_TAGS = {"Code", "CodeModules", "Classes"}
+    # External assembly references are not supported by Power BI Service.
+    # Embedded VB.NET code is supported and must be preserved.
+    STRIP_TAGS = {"CodeModules"}
 
     # Tags whose text will be blanked but element kept
     BLANK_TAGS: set[str] = set()
@@ -42,9 +43,7 @@ class RdlModifier:
         self._parse()
         self._changes.clear()
 
-        self._strip_custom_code()
         self._strip_custom_assemblies()
-        self._strip_classes()
         self._neutralise_file_share_delivery()
 
         out = Path(output_path) if output_path else self.path.with_suffix(".modified.rdl")
@@ -76,14 +75,6 @@ class RdlModifier:
     def _qualified(self, tag: str) -> str:
         return f"{{{self._ns}}}{tag}" if self._ns else tag
 
-    def _strip_custom_code(self) -> None:
-        """Remove <Code> blocks."""
-        for el in list(self._root.iter(self._qualified("Code"))):
-            parent = self._find_parent(el)
-            if parent is not None:
-                parent.remove(el)
-                self._changes.append("Removed <Code> block (custom VB.NET code)")
-
     def _strip_custom_assemblies(self) -> None:
         """Remove <CodeModules> (assembly references)."""
         for el in list(self._root.iter(self._qualified("CodeModules"))):
@@ -91,14 +82,6 @@ class RdlModifier:
             if parent is not None:
                 parent.remove(el)
                 self._changes.append("Removed <CodeModules> (custom assembly references)")
-
-    def _strip_classes(self) -> None:
-        """Remove <Classes> (custom class instances)."""
-        for el in list(self._root.iter(self._qualified("Classes"))):
-            parent = self._find_parent(el)
-            if parent is not None:
-                parent.remove(el)
-                self._changes.append("Removed <Classes> (custom class instances)")
 
     def _neutralise_file_share_delivery(self) -> None:
         """Remove file-share delivery extension references if embedded."""

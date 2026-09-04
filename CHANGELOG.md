@@ -20,6 +20,7 @@
 - Assessment complexity scoring now uses GREEN by default, YELLOW for detected RLS, and RED for any custom visual or subscription.
 - Assessment/export catalog enrichment now runs sequentially in batches of 15 by default and caches the subscription list once per run to reduce PBIRS request bursts.
 - Assessment now falls back to parsing paginated RDL XML and shared datasource references when PBIRS does not expose report connection details through the report datasource endpoint.
+- Paginated-report documentation now reflects Microsoft support: embedded VB.NET code is preserved; only external assemblies, shared RDS/RSD dependencies, linked reports, custom fonts, and SSRS data-driven subscription behavior require remediation.
 - BPA output is now explicitly independent from global migration readiness and licensing/capacity assessment categories.
 - Documentation now distinguishes the focused migration BPA from Tabular Editor's model-level BPA, which requires tabular model metadata and rule collections.
 - `connections_mapping.csv` no longer exposes separate `server_name` or `database_name` columns; the full quoted connection string remains available for internal gateway mapping.

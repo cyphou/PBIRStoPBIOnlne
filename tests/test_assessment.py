@@ -67,7 +67,7 @@ class TestMigrationAssessment:
         result = MigrationAssessment().assess(catalog)
         assert result["items"][0]["scores"]["subscription_migration"]["score"] == RED
 
-    def test_assess_any_email_subscription_does_not_change_global_status(self):
+    def test_assess_any_email_subscription_is_red(self):
         item = {
             "Id": "subscription",
             "Name": "Email Report",
@@ -79,9 +79,9 @@ class TestMigrationAssessment:
             "custom_visuals": [],
         }
         result = MigrationAssessment().assess({"items": [item]})
-        assert result["items"][0]["overall"] == GREEN
+        assert result["items"][0]["overall"] == RED
 
-    def test_assess_rls_does_not_change_global_status(self):
+    def test_assess_rls_is_yellow(self):
         item = {
             "Id": "rls",
             "Name": "Secured Report",
@@ -94,9 +94,9 @@ class TestMigrationAssessment:
             "has_rls": True,
         }
         result = MigrationAssessment().assess({"items": [item]})
-        assert result["items"][0]["overall"] == GREEN
+        assert result["items"][0]["overall"] == YELLOW
 
-    def test_assess_marketplace_custom_visual_keeps_global_rules(self):
+    def test_assess_marketplace_custom_visual_is_red(self):
         item = {
             "Id": "visual",
             "Name": "Custom Visual Report",
@@ -108,7 +108,7 @@ class TestMigrationAssessment:
             "custom_visuals": [{"name": "Custom", "source": "marketplace"}],
         }
         result = MigrationAssessment().assess({"items": [item]})
-        assert result["items"][0]["overall"] == GREEN
+        assert result["items"][0]["overall"] == RED
 
     def test_wave_planning(self, sample_assessment):
         waves = sample_assessment["waves"]
