@@ -12,6 +12,7 @@ Current release baseline: **v1.8.0** (see `../CHANGELOG.md` and `ROADMAP.md`).
 - [ROADMAP.md](ROADMAP.md) - Implemented and planned capabilities
 - [GATEWAY_MAPPING_GUIDE.md](GATEWAY_MAPPING_GUIDE.md) - Gateway mapping and binding guidance
 - [PERMISSION_MAPPING_GUIDE.md](PERMISSION_MAPPING_GUIDE.md) - SSRS to Power BI permission model mapping
+- [CSV_MAPPING_GUIDE.md](CSV_MAPPING_GUIDE.md) - Fill mapping CSVs and apply them to Power BI Online
 - [PAGINATED_REPORT_GUIDE.md](PAGINATED_REPORT_GUIDE.md) - Paginated report migration guidance
 - [PBIX_UPLOAD_GUIDE.md](PBIX_UPLOAD_GUIDE.md) - PBIRS PBIX upload compatibility diagnostics
 - [SECURITY_PRIVACY_CHECKLIST.md](SECURITY_PRIVACY_CHECKLIST.md) - Required privacy and secret-review checks before release
@@ -31,9 +32,13 @@ python migrate.py --validate --input-dir artifacts/converted --workspace-id <WOR
 
 On Windows, `--use-windows-auth` uses the current Windows logon and the Windows trusted certificate store by default. Add `--prompt-windows-credentials` when PBIRS requires alternate credentials.
 
-`--assess` writes the readiness report and the planning artifacts needed for mapping review: `folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`, `permissions.json`, `security.json`, `rls_ols_role_accounts.csv`, and `bpa_accounts.csv`.
+`--assess` writes the readiness report and the planning artifacts needed for mapping review: `folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`, `permissions.json`, `security.json`, and `rls_ols_role_accounts.csv`.
+
+PBIRS objects are enriched sequentially in batches of 15 by default. Use `--catalog-batch-size N` to change the batch size and avoid bursts against a sensitive report server.
 
 For multi-workspace migrations, fill `target_workspace` in `folders_mapping.csv` and `target_azure_ad` in `users_mapping.csv`. The CSV import helper uses `folder_access_mapping.csv` to apply only the principals from each source folder subtree to the matching target workspace.
+
+For the full column-by-column procedure and post-import verification, see [CSV_MAPPING_GUIDE.md](CSV_MAPPING_GUIDE.md).
 
 ### CSV-driven import orchestration
 

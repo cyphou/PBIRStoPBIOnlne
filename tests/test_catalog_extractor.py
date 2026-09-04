@@ -73,3 +73,70 @@ class TestCatalogExtractor:
         extractor = CatalogExtractor(mock_pbirs_client)
         result = extractor.extract_catalog(include_pattern="Sales")
         assert result["total_count"] == 1
+
+    def test_enriches_in_sequential_batches_and_lists_subscriptions_once(self, mock_pbirs_client):
+        mock_pbirs_client.list_catalog_items.return_value = [
+            {"Id": str(i), "Name": f"Report {i}", "Path": f"/Report {i}", "Type": "Kpi"}
+            for i in range(31)
+        ]
+        mock_pbirs_client.list_subscriptions.return_value = []
+        mock_pbirs_client.list_cache_refresh_plans.return_value = []
+
+        result = CatalogExtractor(mock_pbirs_client).extract_catalog(batch_size=15)
+
+        assert result["total_count"] == 31
+        mock_pbirs_client.list_subscriptions.assert_called_once_with()
+
+    def test_rejects_invalid_batch_size(self, mock_pbirs_client):
+        with pytest.raises(ValueError, match="batch_size"):
+            CatalogExtractor(mock_pbirs_client).extract_catalog(batch_size=0)
+
+    def test_extracts_rdl_connection_when_api_metadata_is_empty(self, mock_pbirs_client):
+        mock_pbirs_client.list_catalog_items.return_value = [
+            {"Id": "rdl-1", "Name": "Finance", "Path": "/Finance/Finance", "Type": "Report"},
+        ]
+        mock_pbirs_client.get_report_datasources.return_value = []
+        mock_pbirs_client.download_report.return_value = b"""<?xml version='1.0'?>
+        <Report xmlns='http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition'>
+          <DataSources>
+            <DataSource Name='FinanceDS'>
+              <DataSourceReference>/DataSources/FinanceSQL</DataSourceReference>
+            </DataSource>
+          </DataSources>
+        </Report>"""
+        mock_pbirs_client.list_datasources.return_value = [{
+            "Name": "FinanceSQL",
+            "Path": "/DataSources/FinanceSQL",
+            "DataSourceType": "SQL",
+            "ConnectionString": "Data Source=sql01;Initial Catalog=Finance,Archive",
+        }]
+        mock_pbirs_client.list_subscriptions.return_value = []
+        mock_pbirs_client.list_cache_refresh_plans.return_value = []
+
+        result = CatalogExtractor(mock_pbirs_client).extract_catalog()
+
+        datasource = result["items"][0]["datasources"][0]
+        assert datasource["DataSourceType"] == "SQL"
+        assert datasource["ConnectionString"] == "Data Source=sql01;Initial Catalog=Finance,Archive"
+
+    def test_merges_rdl_connection_when_api_metadata_is_incomplete(self, mock_pbirs_client):
+        mock_pbirs_client.list_catalog_items.return_value = [
+            {"Id": "rdl-2", "Name": "Finance", "Path": "/Finance/Finance", "Type": "Report"},
+        ]
+        mock_pbirs_client.get_report_datasources.return_value = [{
+            "Name": "FinanceDS",
+            "ConnectionString": "",
+            "DataSourceType": "",
+        }]
+        mock_pbirs_client.download_report.return_value = b"""<Report xmlns='http://schemas.microsoft.com/sqlserver/reporting/2016/01/reportdefinition'>
+          <DataSources><DataSource Name='FinanceDS'><ConnectionProperties>
+          <DataProvider>SQL</DataProvider><ConnectString>Data Source=sql01;Initial Catalog=Finance</ConnectString>
+          </ConnectionProperties></DataSource></DataSources></Report>"""
+        mock_pbirs_client.list_subscriptions.return_value = []
+        mock_pbirs_client.list_cache_refresh_plans.return_value = []
+
+        result = CatalogExtractor(mock_pbirs_client).extract_catalog()
+
+        datasource = result["items"][0]["datasources"][0]
+        assert datasource["DataSourceType"] == "SQL"
+        assert datasource["ConnectionString"] == "Data Source=sql01;Initial Catalog=Finance"

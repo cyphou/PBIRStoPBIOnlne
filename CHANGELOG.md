@@ -14,8 +14,15 @@
 - `--use-windows-auth` now uses the current Windows logon by default; `--prompt-windows-credentials` prompts for alternate PBIRS credentials when needed.
 - PBIRS HTTPS validation uses the Windows trusted certificate store by default on Windows, with `--no-use-windows-cert-store` for opt-out and `--pbirs-ca-bundle` as a PEM-bundle fallback.
 - Windows-auth documentation now covers the browser-works/CLI-fails case and the corporate certificate-chain case.
-- `--assess` now emits planning CSV/security artifacts (`folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`, `permissions.json`, `security.json`, `rls_ols_role_accounts.csv`, and `bpa_accounts.csv`) in addition to readiness reports.
+- `--assess` emits planning CSV/security artifacts (`folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`, `permissions.json`, `security.json`, and `rls_ols_role_accounts.csv`) in addition to readiness reports.
 - CSV-driven import now uses `folder_access_mapping.csv` to apply permissions per mapped workspace, avoiding global user assignments across all folder-split workspaces.
+- `connections_mapping.csv` now includes target workspace/gateway/datasource name columns; CSV import resolves gateway and datasource IDs by name and safely preserves connection strings containing commas.
+- Assessment complexity scoring now uses GREEN by default, YELLOW for detected RLS, and RED for any custom visual or subscription.
+- Assessment/export catalog enrichment now runs sequentially in batches of 15 by default and caches the subscription list once per run to reduce PBIRS request bursts.
+- Assessment now falls back to parsing paginated RDL XML and shared datasource references when PBIRS does not expose report connection details through the report datasource endpoint.
+- BPA output is now explicitly independent from global migration readiness and licensing/capacity assessment categories.
+- Documentation now distinguishes the focused migration BPA from Tabular Editor's model-level BPA, which requires tabular model metadata and rule collections.
+- `connections_mapping.csv` no longer exposes separate `server_name` or `database_name` columns; the full quoted connection string remains available for internal gateway mapping.
 
 ### Automated limitation mitigation closure
 - **`pbi_import/subreport_resolver.py`** — now emits cycle groups and an automatic cycle mitigation plan (`retry-cycles`) with deterministic `bootstrap_order`
@@ -31,15 +38,14 @@
 - **`pbi_import/validator.py`** — resolves `.pbix` as model-source candidates and persists `model_snapshot.normalized.json` during validation
 - **`tests/test_validator.py`** — added PBIX fixture, XMLA fallback, role-membership gap, and deterministic score regression tests
 - **`pbirs_export/role_membership_extractor.py`** — now merges model-role principals (and explicit missing-principal gaps) into role-account exports
-- **`pbirs_export/bpa_extractor.py`** — now merges model-role principals into BPA account attachments and exports role-gap metadata
 - **`migrate.py`** — export phase now loads model snapshots and passes them into role/BPA extractors
-- **`tests/test_cli_smoke.py`** — added export-phase integration coverage for model-role propagation into `rls_ols_role_accounts.json` and `bpa_accounts.json`
+- **`tests/test_cli_smoke.py`** — added export-phase integration coverage for model-role propagation into `rls_ols_role_accounts.json`
 
 ### Documentation refresh
 - **`README.md`** — updated tested metrics (575 tests / 37 test files), added explicit sections for:
 	- simplified interactive Windows authentication and default Windows certificate-store TLS validation
 	- no-write `--preflight` connectivity checks
-	- export artifacts: `rls_ols_role_accounts.*` and `bpa_accounts.*`
+	- export artifacts: `rls_ols_role_accounts.*`
 	- semantic model snapshot usage (`model_snapshot.json`)
 	- PBIRS upload diagnostics workflow and service-live incompatibility signal
 - **`docs/DEPLOYMENT_GUIDE.md`**, **`docs/FAQ.md`**, **`docs/README.md`**, and **`docs/PBIX_UPLOAD_GUIDE.md`** — refreshed PBIRS connectivity examples to use the simplified auth flow.
@@ -48,7 +54,6 @@
 
 ### Export and validation enrichment
 - **`pbirs_export/role_membership_extractor.py`** (new) — emits role/account extracts with security type classification and deduplication (`rls_ols_role_accounts.json/.csv`)
-- **`pbirs_export/bpa_extractor.py`** (new) — emits account-attached BPA extracts (`bpa_accounts.json/.csv`) with per-item category rollups
 - **`pbi_import/model_snapshot.py`** (new) — resolves and normalizes explicit semantic model snapshot artifacts for downstream analysis
 - **`pbi_import/semantic_bpa.py`** (new) — semantic BPA scoring + capacity merge checks wired into validation
 

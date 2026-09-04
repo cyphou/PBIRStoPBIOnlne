@@ -324,6 +324,17 @@ class MigrationAssessment:
         items = report.get("items", [])
         waves = report.get("waves", [])
         recommendations = report.get("recommendations", [])
+        total = int(summary.get("total_items", 0) or 0)
+        green = int(summary.get("green", 0) or 0)
+        yellow = int(summary.get("yellow", 0) or 0)
+        red = int(summary.get("red", 0) or 0)
+        readiness = round((green / total) * 100) if total else 0
+        risk_categories: dict[str, int] = {}
+        for item in items:
+            for category, detail in item.get("scores", {}).items():
+                if detail.get("score") in (YELLOW, RED):
+                    risk_categories[category] = risk_categories.get(category, 0) + 1
+        top_risks = sorted(risk_categories.items(), key=lambda pair: (-pair[1], pair[0]))[:5]
 
         html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -331,76 +342,109 @@ class MigrationAssessment:
     <meta charset="utf-8">
     <title>PBIRS Migration Assessment Report</title>
     <style>
-        :root {{
-            --pbi-yellow: #F2C811;
-            --pbi-dark: #252423;
-            --pbi-blue: #3B82F6;
-            --green: #22C55E;
-            --yellow: #EAB308;
-            --red: #EF4444;
-            --bg: #FAFAFA;
-        }}
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--pbi-dark); }}
-        .header {{ background: linear-gradient(135deg, var(--pbi-dark), #3B3A39); color: white; padding: 2rem; }}
-        .header h1 {{ font-size: 1.8rem; font-weight: 600; }}
-        .header p {{ opacity: 0.8; margin-top: 0.5rem; }}
-        .container {{ max-width: 1200px; margin: 0 auto; padding: 1.5rem; }}
-        .stats {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1.5rem 0; }}
-        .stat-card {{ background: white; border-radius: 8px; padding: 1.2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }}
-        .stat-card .value {{ font-size: 2rem; font-weight: 700; }}
-        .stat-card .label {{ color: #666; font-size: 0.85rem; margin-top: 0.3rem; }}
-        .badge {{ display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }}
-        .badge-green {{ background: #DCFCE7; color: #166534; }}
-        .badge-yellow {{ background: #FEF9C3; color: #854D0E; }}
-        .badge-red {{ background: #FEE2E2; color: #991B1B; }}
-        table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
-        th, td {{ padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid #E5E7EB; }}
-        th {{ background: #F3F4F6; font-weight: 600; font-size: 0.85rem; }}
-        .section {{ background: white; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-        .section h2 {{ font-size: 1.2rem; margin-bottom: 1rem; color: var(--pbi-dark); }}
-        .rec-list {{ list-style: none; }}
-        .rec-list li {{ padding: 0.5rem 0; border-bottom: 1px solid #F3F4F6; }}
-        .rec-list li::before {{ content: "⚡"; margin-right: 0.5rem; }}
+        :root {{ --ink:#17212b; --muted:#65727e; --line:#dfe5ea; --paper:#ffffff; --canvas:#f4f6f8; --accent:#f2c811; --green:#16a34a; --yellow:#c27a00; --red:#c73636; }}
+        * {{ box-sizing:border-box; margin:0; padding:0; }}
+        body {{ font-family:'Segoe UI', system-ui, sans-serif; background:var(--canvas); color:var(--ink); line-height:1.45; }}
+        .hero {{ background:linear-gradient(120deg,#17212b 0%,#263746 72%,#f2c811 72%,#f2c811 100%); color:#fff; padding:2.8rem max(1.25rem,calc((100% - 1240px)/2)); }}
+        .eyebrow {{ color:#f8d83b; font-size:.72rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }}
+        h1 {{ font-size:clamp(1.8rem,4vw,3rem); letter-spacing:-.03em; margin-top:.55rem; }}
+        .hero p {{ color:#d6e0e8; max-width:680px; margin-top:.7rem; }}
+        .container {{ max-width:1240px; margin:0 auto; padding:1.4rem 1.25rem 3rem; }}
+        .executive {{ display:grid; grid-template-columns:1.25fr .75fr; gap:1rem; margin-top:-1.4rem; position:relative; }}
+        .panel {{ background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:1.25rem; box-shadow:0 8px 24px rgba(23,33,43,.06); }}
+        .panel h2 {{ font-size:1rem; margin-bottom:.9rem; }}
+        .readiness {{ display:flex; align-items:center; gap:1rem; }}
+        .score {{ font-size:3.2rem; font-weight:750; letter-spacing:-.06em; color:var(--green); }}
+        .meter {{ height:10px; background:#e8edf1; border-radius:99px; overflow:hidden; margin:.45rem 0 .3rem; }}
+        .meter span {{ display:block; height:100%; width:{readiness}%; background:linear-gradient(90deg,#16a34a,#9bcf45); border-radius:inherit; }}
+        .muted {{ color:var(--muted); font-size:.82rem; }}
+        .stats {{ display:grid; grid-template-columns:repeat(5,1fr); gap:.7rem; margin:1rem 0; }}
+        .stat-card {{ background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:1rem; }}
+        .stat-card .value {{ font-size:1.75rem; font-weight:750; }}
+        .stat-card .label {{ color:var(--muted); font-size:.75rem; margin-top:.25rem; }}
+        .green {{ color:var(--green); }} .yellow {{ color:var(--yellow); }} .red {{ color:var(--red); }}
+        .badge {{ display:inline-block; padding:.22rem .58rem; border-radius:99px; font-size:.72rem; font-weight:750; }}
+        .badge-green {{ background:#e3f6e8; color:#166534; }} .badge-yellow {{ background:#fff2d2; color:#8a5700; }} .badge-red {{ background:#fde5e5; color:#982b2b; }}
+        .risk-list {{ display:grid; gap:.55rem; list-style:none; }}
+        .risk-list li {{ display:flex; justify-content:space-between; gap:1rem; padding:.5rem 0; border-bottom:1px solid #eef1f3; font-size:.84rem; }}
+        .section {{ margin-top:1rem; }}
+        .section-header {{ display:flex; align-items:end; justify-content:space-between; gap:1rem; margin-bottom:.8rem; }}
+        .section-header h2 {{ font-size:1.15rem; }}
+        .rec-list {{ list-style:none; display:grid; gap:.55rem; }}
+        .rec-list li {{ background:var(--paper); border-left:4px solid var(--accent); border-radius:8px; padding:.75rem 1rem; border-top:1px solid var(--line); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }}
+        .toolbar {{ display:flex; gap:.6rem; flex-wrap:wrap; }}
+        input, select {{ border:1px solid #cbd5dc; border-radius:7px; padding:.55rem .7rem; background:#fff; color:var(--ink); }}
+        .table-wrap {{ overflow:auto; border:1px solid var(--line); border-radius:10px; background:#fff; }}
+        table {{ width:100%; border-collapse:collapse; min-width:850px; }}
+        th, td {{ padding:.72rem .8rem; text-align:left; border-bottom:1px solid #edf0f2; vertical-align:top; }}
+        th {{ background:#eef2f5; color:#3a4853; font-weight:700; font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; position:sticky; top:0; }}
+        td {{ font-size:.82rem; }} tr:last-child td {{ border-bottom:0; }} tr:hover td {{ background:#fbfcfd; }}
+        .wave {{ background:var(--paper); border:1px solid var(--line); border-radius:9px; padding:.8rem 1rem; margin:.55rem 0; }}
+        .wave h3 {{ font-size:.9rem; }}
+        @media (max-width:800px) {{ .executive {{ grid-template-columns:1fr; }} .stats {{ grid-template-columns:repeat(2,1fr); }} .hero {{ background:#17212b; }} }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>PBIRS → PBI Online Migration Assessment</h1>
-        <p>Power BI Report Server content readiness report</p>
+    <div class="hero">
+        <div class="eyebrow">Migration intelligence</div>
+        <h1>PBIRS → Power BI Online</h1>
+        <p>Executive readiness view for the source portfolio, migration risk and next delivery wave.</p>
     </div>
     <div class="container">
+        <div class="executive">
+            <div class="panel">
+                <h2>Portfolio readiness</h2>
+                <div class="readiness">
+                    <div class="score">{readiness}%</div>
+                    <div style="flex:1"><strong>{green} of {total} items ready</strong><div class="meter"><span></span></div><div class="muted">Based on items currently classified GREEN</div></div>
+                </div>
+            </div>
+            <div class="panel">
+                <h2>Top attention areas</h2>
+                <ul class="risk-list">{''.join(f'<li><span>{_esc(category.replace("_", " ").title())}</span><strong>{count}</strong></li>' for category, count in top_risks) or '<li><span class="muted">No immediate risk areas</span><strong>—</strong></li>'}</ul>
+            </div>
+        </div>
         <div class="stats">
-            <div class="stat-card"><div class="value">{summary.get('total_items', 0)}</div><div class="label">Total Items</div></div>
-            <div class="stat-card"><div class="value" style="color:var(--green)">{summary.get('green', 0)}</div><div class="label">Ready (GREEN)</div></div>
-            <div class="stat-card"><div class="value" style="color:var(--yellow)">{summary.get('yellow', 0)}</div><div class="label">Minor Work (YELLOW)</div></div>
-            <div class="stat-card"><div class="value" style="color:var(--red)">{summary.get('red', 0)}</div><div class="label">Rework (RED)</div></div>
-            <div class="stat-card"><div class="value">{summary.get('powerbi_reports', 0)}</div><div class="label">Power BI Reports</div></div>
-            <div class="stat-card"><div class="value">{summary.get('paginated_reports', 0)}</div><div class="label">Paginated Reports</div></div>
+            <div class="stat-card"><div class="value">{total}</div><div class="label">Total items</div></div>
+            <div class="stat-card"><div class="value green">{green}</div><div class="label">Ready</div></div>
+            <div class="stat-card"><div class="value yellow">{yellow}</div><div class="label">Attention</div></div>
+            <div class="stat-card"><div class="value red">{red}</div><div class="label">Rework</div></div>
+            <div class="stat-card"><div class="value">{summary.get('paginated_reports', 0) + summary.get('powerbi_reports', 0)}</div><div class="label">Reports</div></div>
         </div>
 
-        <div class="section">
-            <h2>Recommendations</h2>
+        <div class="section panel">
+            <div class="section-header"><h2>Recommended next actions</h2><span class="muted">Prioritize before import</span></div>
             <ul class="rec-list">
-                {''.join(f'<li>{r}</li>' for r in recommendations)}
+                {''.join(f'<li>{_esc(r)}</li>' for r in recommendations) or '<li>No additional actions generated.</li>'}
             </ul>
         </div>
 
-        <div class="section">
-            <h2>Migration Waves</h2>
+        <div class="section panel">
+            <div class="section-header"><h2>Migration waves</h2><span class="muted">Delivery sequence</span></div>
             {''.join(self._wave_html(w) for w in waves)}
         </div>
 
         <div class="section">
-            <h2>Item Details</h2>
-            <table>
+            <div class="section-header"><h2>Portfolio detail</h2><div class="toolbar"><input id="search" type="search" placeholder="Search name or path" oninput="filterRows()"><select id="status" onchange="filterRows()"><option value="">All statuses</option><option>GREEN</option><option>YELLOW</option><option>RED</option></select></div></div>
+            <div class="table-wrap"><table>
                 <thead><tr><th>Name</th><th>Type</th><th>Path</th><th>Score</th><th>Notes</th></tr></thead>
                 <tbody>
                     {''.join(self._item_row_html(i) for i in items)}
                 </tbody>
-            </table>
+            </table></div>
         </div>
     </div>
+    <script type="text/javascript">
+    function filterRows() {{
+        const query = document.getElementById('search').value.toLowerCase();
+        const status = document.getElementById('status').value;
+        document.querySelectorAll('tbody tr').forEach(row => {{
+            const matchesText = row.innerText.toLowerCase().includes(query);
+            const matchesStatus = !status || row.dataset.status === status;
+            row.style.display = matchesText && matchesStatus ? '' : 'none';
+        }});
+    }}
+    </script>
 </body>
 </html>"""
 
@@ -408,15 +452,15 @@ class MigrationAssessment:
             f.write(html)
 
     def _wave_html(self, wave: dict) -> str:
-        return f"""<div style="margin-bottom:1rem">
+        return f"""<div class="wave">
             <h3>Wave {wave['wave']}: {wave['name']} ({wave['count']} items)</h3>
-            <p style="color:#666">{wave['description']}</p>
+            <p class="muted">{_esc(wave['description'])}</p>
         </div>"""
 
     def _item_row_html(self, item: dict) -> str:
         badge_class = f"badge-{item['overall'].lower()}"
-        notes = "<br>".join(item.get("notes", []))
-        return f"""<tr>
+        notes = "<br>".join(_esc(note) for note in item.get("notes", []))
+        return f"""<tr data-status="{_esc(item['overall'])}">
             <td>{_esc(item['name'])}</td>
             <td>{_esc(item['type'])}</td>
             <td>{_esc(item['path'])}</td>

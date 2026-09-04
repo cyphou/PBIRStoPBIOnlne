@@ -2,13 +2,18 @@
 edge cases, round-trip fidelity, and content integrity."""
 
 import csv
+import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from pbirs_export.mapping_generator import MappingGenerator
-from scripts.csv_to_pbi_online_import import _apply_permissions, _parse_workspace_assignments
+from scripts.csv_to_pbi_online_import import (
+    _apply_permissions,
+    _build_gateway_map_json,
+    _parse_workspace_assignments,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -163,8 +168,8 @@ class TestCSVFileStructure:
             headers = next(reader)
         assert headers == [
             "report_name", "report_path", "report_type", "datasource_type",
-            "connection_string", "server_name", "database_name",
-            "needs_gateway", "target_gateway_id", "target_datasource_id", "notes",
+            "connection_string", "needs_gateway", "target_workspace", "target_gateway_name",
+            "target_datasource_name", "target_gateway_id", "target_datasource_id", "notes",
         ]
 
     def test_folder_access_csv_headers(self, tmp_path):
@@ -267,6 +272,40 @@ class TestCSVFileStructure:
             role="Admin",
         )
         assert pbi_client.add_workspace_user.call_count == 2
+
+    def test_gateway_mapping_resolves_names_and_preserves_comma_connection(self, tmp_path):
+        pbi_client = MagicMock()
+        pbi_client.list_gateways.return_value = [
+            {"id": "gw-1", "name": "Production Gateway"},
+        ]
+        pbi_client.list_gateway_datasources.return_value = [
+            {"id": "ds-1", "datasourceName": "Finance SQL"},
+        ]
+        rows = [{
+            "report_name": "Finance Report",
+            "needs_gateway": "yes",
+            "target_gateway_name": "Production Gateway",
+            "target_datasource_name": "Finance SQL",
+            "target_gateway_id": "",
+            "target_datasource_id": "",
+            "connection_string": "Data Source=sql01;Initial Catalog=Finance,Archive",
+            "server_name": "sql01",
+            "database_name": "Finance,Archive",
+            "datasource_type": "SQL",
+        }]
+
+        path, summary = _build_gateway_map_json(
+            rows,
+            tmp_path / "gateway.json",
+            pbi_client,
+            create_missing=False,
+            dry_run=False,
+        )
+
+        assert summary["mapped"] == 1
+        assert json.loads(path.read_text(encoding="utf-8")) == {
+            "Finance Report": {"gateway_id": "gw-1", "datasource_ids": ["ds-1"]}
+        }
 
     def test_output_dir_created_if_missing(self, tmp_path):
         nested = tmp_path / "a" / "b" / "c"
@@ -522,8 +561,7 @@ class TestConnectionExtraction:
         paths = gen.generate_all(str(tmp_path))
         rows = _read_csv(paths["connections"])
         sales = next(r for r in rows if r["report_name"] == "Sales Dashboard")
-        assert sales["server_name"] == "sql01.corp.local"
-        assert sales["database_name"] == "SalesDB"
+        assert sales["connection_string"] == "Data Source=sql01.corp.local;Initial Catalog=SalesDB"
 
     def test_gateway_needed_for_onprem(self, tmp_path, rich_embedded_ds):
         gen = _make_generator(embedded_ds=rich_embedded_ds)
@@ -731,7 +769,7 @@ class TestEdgeCases:
         paths = gen.generate_all(str(tmp_path))
         rows = _read_csv(paths["connections"])
         assert len(rows) == 1
-        assert rows[0]["server_name"] == ""
+        assert rows[0]["connection_string"] == ""
 
     def test_policy_with_no_group_user_name(self, tmp_path):
         gen = _make_generator(

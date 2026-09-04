@@ -104,7 +104,6 @@ def _write_planning_artifacts(
     logger: logging.Logger,
 ) -> None:
     """Write mapping, permission, security, and account-planning artifacts."""
-    from pbirs_export.bpa_extractor import BPAExtractor
     from pbirs_export.datasource_extractor import DatasourceExtractor
     from pbirs_export.mapping_generator import MappingGenerator
     from pbirs_export.permission_extractor import PermissionExtractor
@@ -140,16 +139,6 @@ def _write_planning_artifacts(
         "RLS/OLS role-account extract generated: %s, %s",
         role_json.name,
         role_csv.name,
-    )
-
-    bpa_extractor = BPAExtractor()
-    bpa_payload = bpa_extractor.extract(catalog, security, model_snapshot=model_snapshot)
-    bpa_json = bpa_extractor.save_json(str(output_dir), bpa_payload)
-    bpa_csv = bpa_extractor.save_csv(str(output_dir), bpa_payload)
-    logger.info(
-        "BPA account extract generated: %s, %s",
-        bpa_json.name,
-        bpa_csv.name,
     )
 
     mapping_gen = MappingGenerator(
@@ -193,6 +182,7 @@ def _run_assessment(args: argparse.Namespace, logger: logging.Logger) -> int:
         content_types=getattr(args, "content_types", None),
         include_pattern=getattr(args, "include_pattern", None),
         exclude_pattern=getattr(args, "exclude_pattern", None),
+        batch_size=getattr(args, "catalog_batch_size", 15),
     )
 
     assessment = MigrationAssessment()
@@ -239,7 +229,6 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
     """Phase 2: Export PBIRS content to local artifacts."""
     from pbirs_export.api_client import PBIRSClient
     from pbirs_export.catalog_extractor import CatalogExtractor
-    from pbirs_export.bpa_extractor import BPAExtractor
     from pbirs_export.content_downloader import ContentDownloader
     from pbirs_export.datasource_extractor import DatasourceExtractor
     from pbirs_export.mapping_generator import MappingGenerator
@@ -271,6 +260,7 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
         content_types=getattr(args, "content_types", None),
         include_pattern=getattr(args, "include_pattern", None),
         exclude_pattern=getattr(args, "exclude_pattern", None),
+        batch_size=getattr(args, "catalog_batch_size", 15),
     )
 
     # Download content files
@@ -353,17 +343,6 @@ def _run_export(args: argparse.Namespace, logger: logging.Logger) -> int:
         "RLS/OLS role-account extract generated: %s, %s",
         role_json.name,
         role_csv.name,
-    )
-
-    # Extract BPA with attached accounts.
-    bpa_extractor = BPAExtractor()
-    bpa_payload = bpa_extractor.extract(catalog, security, model_snapshot=model_snapshot)
-    bpa_json = bpa_extractor.save_json(str(output_dir), bpa_payload)
-    bpa_csv = bpa_extractor.save_csv(str(output_dir), bpa_payload)
-    logger.info(
-        "BPA account extract generated: %s, %s",
-        bpa_json.name,
-        bpa_csv.name,
     )
 
     # Generate CSV mapping templates
@@ -1537,6 +1516,12 @@ Examples:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Use Windows trusted root/intermediate certificates for PBIRS TLS verification (default on Windows)",
+    )
+    conn.add_argument(
+        "--catalog-batch-size",
+        type=int,
+        default=15,
+        help="Maximum PBIRS catalog objects enriched per sequential batch (default: 15)",
     )
 
     # PBI Online auth

@@ -129,7 +129,6 @@ class TestCliWiring:
         assert (tmp_path / "folder_access_mapping.csv").exists()
         assert (tmp_path / "connections_mapping.csv").exists()
         assert (tmp_path / "rls_ols_role_accounts.csv").exists()
-        assert (tmp_path / "bpa_accounts.csv").exists()
         assert (tmp_path / "permissions.json").exists()
         assert (tmp_path / "security.json").exists()
 
@@ -185,7 +184,7 @@ class TestPhaseDirs:
     def test_export_propagates_filters(self, tmp_path, monkeypatch, fake_pbirs_client, fake_pbi_client):
         captured = {}
 
-        def fake_extract(self, folder=None, content_types=None, include_pattern=None, exclude_pattern=None):
+        def fake_extract(self, folder=None, content_types=None, include_pattern=None, exclude_pattern=None, batch_size=15):
             captured.update(folder=folder, content_types=content_types,
                             include_pattern=include_pattern, exclude_pattern=exclude_pattern)
             return {"items": [], "folders": [], "total_count": 0, "server_info": {}}
@@ -520,10 +519,3 @@ class TestExportModelRolePropagation:
             for r in role_rows
         )
         assert "OLS_Restricted" in role_payload.get("summary", {}).get("model_roles_without_members", [])
-
-        bpa_payload = json.loads((tmp_path / "bpa_accounts.json").read_text(encoding="utf-8"))
-        assert bpa_payload.get("summary", {}).get("model_role_principal_count", 0) >= 1
-        assert any(
-            "CONTOSO\\FinanceReaders" in item.get("model_role_principals", [])
-            for item in bpa_payload.get("items", [])
-        )

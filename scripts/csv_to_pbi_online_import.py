@@ -142,6 +142,32 @@ def _resolve_or_create_datasource_id(
     return created.get("id")
 
 
+def _resolve_gateway_id(pbi_client: Any, gateway_name: str, gateway_id: str = "") -> str:
+    """Resolve a gateway by display name, retaining ID fallback compatibility."""
+    wanted = (gateway_name or "").strip().casefold()
+    if wanted:
+        for gateway in pbi_client.list_gateways():
+            if str(gateway.get("name") or gateway.get("displayName") or "").strip().casefold() == wanted:
+                return str(gateway.get("id") or "")
+    return gateway_id.strip()
+
+
+def _resolve_datasource_id(
+    pbi_client: Any,
+    gateway_id: str,
+    datasource_name: str,
+    datasource_id: str = "",
+) -> str:
+    """Resolve a datasource by name within a gateway, retaining ID fallback."""
+    wanted = (datasource_name or "").strip().casefold()
+    if wanted and gateway_id:
+        for datasource in pbi_client.list_gateway_datasources(gateway_id):
+            name = str(datasource.get("datasourceName") or datasource.get("name") or "").strip()
+            if name.casefold() == wanted:
+                return str(datasource.get("id") or "")
+    return datasource_id.strip()
+
+
 def _build_gateway_map_json(
     rows: list[dict[str, str]],
     out_path: Path,
@@ -163,16 +189,25 @@ def _build_gateway_map_json(
         if not needs_gateway:
             continue
 
-        gateway_id = (row.get("target_gateway_id") or "").strip()
+        gateway_id = _resolve_gateway_id(
+            pbi_client,
+            row.get("target_gateway_name") or "",
+            row.get("target_gateway_id") or "",
+        )
         report_name = _normalize_name(row.get("report_name") or "")
         if not gateway_id or not report_name:
             continue
 
         summary["rows_with_gateway"] += 1
 
-        datasource_id = (row.get("target_datasource_id") or "").strip()
+        datasource_id = _resolve_datasource_id(
+            pbi_client,
+            gateway_id,
+            row.get("target_datasource_name") or "",
+            row.get("target_datasource_id") or "",
+        )
         if not datasource_id:
-            ds_name = report_name
+            ds_name = (row.get("target_datasource_name") or "").strip() or report_name
             resolved = _resolve_or_create_datasource_id(
                 pbi_client=pbi_client,
                 gateway_id=gateway_id,

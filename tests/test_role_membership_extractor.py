@@ -45,9 +45,41 @@ def test_extract_builds_role_account_rows():
     }
 
     payload = RoleMembershipExtractor().extract(permissions, security)
-    assert payload["summary"]["total_assignments"] == 4
-    assert payload["summary"]["by_security_type"]["RLS"] >= 2
+    assert payload["summary"]["total_assignments"] == 2
+    assert payload["summary"]["by_security_type"]["RLS"] == 1
     assert payload["summary"]["by_security_type"]["OLS"] == 1
+
+
+def test_extract_excludes_ssrs_access_roles_and_paginated_reports():
+    permissions = {
+        "system_policies": [{
+            "GroupUserName": "CONTOSO\\Admins",
+            "Roles": [{"Name": "System Administrator"}],
+        }],
+        "item_policies": [
+            {
+                "item_name": "Paginated",
+                "item_path": "/Reports/Paginated",
+                "item_type": "Report",
+                "policies": [{
+                    "GroupUserName": "user@contoso.com",
+                    "Roles": [{"Name": "Browser"}, {"Name": "RLS_NotForRdl"}],
+                }],
+            },
+            {
+                "item_name": "Model",
+                "item_path": "/Reports/Model",
+                "item_type": "PowerBIReport",
+                "policies": [{
+                    "GroupUserName": "user@contoso.com",
+                    "Roles": [{"Name": "Browser"}, {"Name": "RLS_Sales"}],
+                }],
+            },
+        ],
+    }
+    payload = RoleMembershipExtractor().extract(permissions, {"effective_permissions": []})
+
+    assert [row["role_name"] for row in payload["rows"]] == ["RLS_Sales"]
 
 
 def test_extract_deduplicates_assignments():

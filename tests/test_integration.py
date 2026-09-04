@@ -178,7 +178,7 @@ class TestAssessmentEdgeCases:
         assert result["items"][0]["scores"]["subscription_migration"]["score"] == YELLOW
 
     def test_org_custom_visual_scores_yellow(self):
-        """Org visuals need verification in target tenant."""
+        """Global assessment keeps organization visuals as a YELLOW review item."""
         catalog = {
             "items": [{
                 "Id": "cv1", "Name": "Viz Report", "Path": "/Viz",

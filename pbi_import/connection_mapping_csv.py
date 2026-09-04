@@ -31,7 +31,7 @@ def write_connection_mapping_csv(
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=_fieldnames())
+        writer = csv.DictWriter(f, fieldnames=_fieldnames(), quoting=csv.QUOTE_ALL)
         writer.writeheader()
         writer.writerows(rows)
 

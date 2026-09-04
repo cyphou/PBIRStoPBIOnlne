@@ -43,7 +43,7 @@ The tool uses a `gateway_mapping.json` file to bind reports to gateway datasourc
 
 ## ⚡ Auto-Generate Mapping Template
 
-After running the export phase, generate a mapping template:
+After running assessment or export, generate a mapping template:
 
 ```bash
 # Generate from exported datasources
@@ -58,7 +58,28 @@ python migrate.py --server URL --export  # includes mapping_generator output
 Then fill in the `gateway_id` and `datasource_ids` fields manually.
 
 > [!NOTE]
-> The `mapping_generator` also outputs a `gateway_mapping.csv` with all detected datasources pre-filled.
+> The migration mapping generator outputs `connections_mapping.csv`. Its CSV writer quotes fields automatically, including connection strings containing commas. Fill the gateway and datasource **names**; the CSV import helper resolves the corresponding IDs from the Power BI APIs.
+
+### CSV columns to fill
+
+In `connections_mapping.csv`, review each row and fill:
+
+| Column | What to enter |
+|--------|---------------|
+| `target_workspace` | Target workspace name for this report/connection |
+| `target_gateway_name` | Exact gateway display name in Power BI Online |
+| `target_datasource_name` | Exact datasource name under that gateway |
+| `notes` | Optional operator notes |
+
+`target_gateway_id` and `target_datasource_id` remain supported for legacy mappings, but names are preferred. The importer resolves names to IDs at runtime, avoiding stale IDs between tenants or environments.
+
+Connection strings are written as valid CSV fields. Server and database are intentionally not duplicated into separate CSV columns; the importer uses the full connection string internally. For example, a value containing a comma is stored as:
+
+```csv
+"Data Source=sql01;Initial Catalog=Finance,Archive"
+```
+
+Do not manually split or remove the quotes. Open and save the file with a CSV-aware tool and preserve the header names.
 
 ---
 

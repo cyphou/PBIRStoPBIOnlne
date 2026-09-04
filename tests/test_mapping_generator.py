@@ -152,6 +152,13 @@ class TestMappingGenerator:
         rows = _read_csv(paths["users"])
         assert "target_azure_ad" in rows[0]
 
+    def test_connections_csv_has_workspace_and_name_mapping_columns(self, catalog, permissions, datasources, tmp_path):
+        gen = MappingGenerator(catalog, permissions, datasources)
+        rows = _read_csv(gen.generate_all(str(tmp_path))["connections"])
+        assert "target_workspace" in rows[0]
+        assert "target_gateway_name" in rows[0]
+        assert "target_datasource_name" in rows[0]
+
     def test_folder_access_csv_scopes_principals_by_folder(self, catalog, permissions, datasources, tmp_path):
         gen = MappingGenerator(catalog, permissions, datasources)
         paths = gen.generate_all(str(tmp_path))
@@ -180,8 +187,7 @@ class TestMappingGenerator:
         paths = gen.generate_all(str(tmp_path))
         rows = _read_csv(paths["connections"])
         sales = next(r for r in rows if r["report_name"] == "Sales Dashboard")
-        assert sales["server_name"] == "sql01.corp.local"
-        assert sales["database_name"] == "SalesDB"
+        assert sales["connection_string"] == "Data Source=sql01.corp.local;Initial Catalog=SalesDB"
 
     def test_connections_csv_gateway_detection(self, catalog, permissions, datasources, tmp_path):
         gen = MappingGenerator(catalog, permissions, datasources)

@@ -30,6 +30,8 @@ class RoleMembershipExtractor:
             item_name = str(item.get("item_name", ""))
             item_path = str(item.get("item_path", ""))
             item_type = str(item.get("item_type", ""))
+            if item_type != "PowerBIReport":
+                continue
             for policy in item.get("policies", []):
                 if not isinstance(policy, dict):
                     continue
@@ -39,7 +41,7 @@ class RoleMembershipExtractor:
                 principal_meta = self._principal_meta(principal)
                 for role in policy.get("Roles", []):
                     role_name = self._role_name(role)
-                    if not role_name:
+                    if not role_name or not self._is_rls_ols_role(role_name):
                         continue
                     rows.append(
                         {
@@ -56,40 +58,15 @@ class RoleMembershipExtractor:
                         }
                     )
 
-        # System-level policies (global PBIRS roles).
-        for policy in permissions.get("system_policies", []):
-            if not isinstance(policy, dict):
-                continue
-            principal = str(policy.get("GroupUserName", ""))
-            if not principal:
-                continue
-            principal_meta = self._principal_meta(principal)
-            for role in policy.get("Roles", []):
-                role_name = self._role_name(role)
-                if not role_name:
-                    continue
-                rows.append(
-                    {
-                        "security_type": self._classify_security_type(role_name),
-                        "role_name": role_name,
-                        "account": principal,
-                        "account_type": principal_meta["account_type"],
-                        "domain": principal_meta["domain"],
-                        "scope": "system_policy",
-                        "item_path": "/",
-                        "item_name": "[System]",
-                        "item_type": "System",
-                        "source": "permissions.system_policies",
-                    }
-                )
-
         # Effective permissions from security extractor for inherited visibility.
         for entry in security.get("effective_permissions", []):
             if not isinstance(entry, dict):
                 continue
             role_name = str(entry.get("ssrs_role", ""))
             principal = str(entry.get("principal", ""))
-            if not role_name or not principal:
+            if str(entry.get("item_type", "")) != "PowerBIReport":
+                continue
+            if not role_name or not principal or not self._is_rls_ols_role(role_name):
                 continue
             principal_meta = self._principal_meta(principal)
             rows.append(
@@ -194,6 +171,14 @@ class RoleMembershipExtractor:
         if "ols" in token or "object" in token or "column" in token:
             return "OLS"
         return "RLS"
+
+    @staticmethod
+    def _is_rls_ols_role(role_name: str) -> bool:
+        token = role_name.casefold()
+        return any(
+            marker in token
+            for marker in ("rls", "ols", "row-level", "row level", "object-level", "object level")
+        )
 
     @staticmethod
     def _principal_meta(principal: str) -> dict[str, str]:

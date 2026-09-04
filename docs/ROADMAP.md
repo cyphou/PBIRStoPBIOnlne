@@ -198,7 +198,6 @@ Focus: replace heuristic BPA scoring with actual report/model inspection so the 
 
 ### 2.5) Account-attached security/BPA exports
 - [x] Export role-account extracts (`rls_ols_role_accounts.json/.csv`) from permissions + effective security
-- [x] Export BPA+account extracts (`bpa_accounts.json/.csv`) with RED/YELLOW category rollup and attached principals
 
 ### 3) RLS/OLS + account attachment from the model
 - [x] Read RLS roles and OLS definitions from the model snapshot when available

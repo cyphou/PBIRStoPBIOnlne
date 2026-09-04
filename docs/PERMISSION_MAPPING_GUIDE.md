@@ -46,6 +46,8 @@ PBIRS folder/report permissions cannot be reproduced as item-level permissions i
 | `users_mapping.csv` | Map each PBIRS principal to `target_azure_ad` |
 | `folder_access_mapping.csv` | Shows the effective principals and roles per PBIRS folder; used to scope workspace permissions |
 
+Only fill the `target_workspace`, `target_azure_ad`, `target_pbi_role`, and `notes` columns. Leave source columns unchanged so the importer can match the original folder and principal.
+
 When `folder_access_mapping.csv` is present, `scripts/csv_to_pbi_online_import.py` applies permissions per target workspace instead of applying every mapped user to every workspace. It resolves the target workspace by longest matching `folder_path` from `folders_mapping.csv`, then uses `users_mapping.csv` for the Azure AD identity.
 
 Example:

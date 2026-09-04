@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | 🏷️ **Version** | 1.8.0 |
-| ✅ **Tests** | 581 passed · 37 test files |
+| ✅ **Tests** | 589 passed · 37 test files |
 | 🐍 **Python** | 3.12+ · zero external dependencies |
 | 📜 **License** | MIT |
 
@@ -54,7 +54,11 @@ python migrate.py --server https://pbirs.company.com/reports --assess --content-
 
 Assessment writes the readiness report plus planning artifacts used before import:
 `folders_mapping.csv`, `users_mapping.csv`, `folder_access_mapping.csv`, `connections_mapping.csv`,
-`permissions.json`, `security.json`, `rls_ols_role_accounts.csv`, and `bpa_accounts.csv`.
+`permissions.json`, `security.json`, and `rls_ols_role_accounts.csv`.
+
+Assessment and export enrich PBIRS catalog objects sequentially in batches of 15 by default to avoid request bursts. Adjust with `--catalog-batch-size N` when needed.
+
+See the complete CSV workflow in [docs/CSV_MAPPING_GUIDE.md](docs/CSV_MAPPING_GUIDE.md).
 
 #### 📁 Phase-by-phase
 
@@ -242,6 +246,7 @@ flowchart LR
 | `--prompt-windows-credentials` | Prompt for PBIRS `DOMAIN\user` and password instead of using current Windows logon |
 | `--pbirs-ca-bundle FILE` | PEM CA bundle for PBIRS HTTPS certificate validation |
 | `--use-windows-cert-store` / `--no-use-windows-cert-store` | Use Windows trusted certificates for PBIRS HTTPS validation; enabled by default on Windows |
+| `--catalog-batch-size N` | Maximum catalog objects enriched per sequential batch (default: 15) |
 
 ### PBIRS Authentication Model
 
@@ -403,15 +408,17 @@ See:
 9. **Custom Visuals** — Org visual gallery mapping
 
 ### Portfolio Grading
-- 🟢 **GREEN** — Fully compatible, direct migration
-- 🟡 **YELLOW** — Minor adjustments needed (gateway rebinding, connection updates)
-- 🔴 **RED** — Significant rework required (unsupported features, deprecated types)
+- 🟢 **GREEN** — Default status when no blocking complexity indicator is detected
+- 🟡 **YELLOW** — RLS is detected and requires role/workspace validation
+- 🔴 **RED** — Any custom visual or subscription is present, or another blocking migration issue is detected
+
+Custom visuals and subscriptions intentionally override the default complexity status. Gateway, capacity, security-role, datasource, and paginated-feature categories can add their own warnings or blocking scores as well.
 
 ---
 
 ## 🧪 Planning Artifacts For Security And BPA
 
-Assessment and export both emit planning, account-attached security, and BPA artifacts:
+Assessment and export both emit planning and account-attached security artifacts:
 
 - `folders_mapping.csv`
     - PBIRS folder-to-target-workspace planning. Fill `target_workspace` to split content by source folder.
@@ -420,12 +427,11 @@ Assessment and export both emit planning, account-attached security, and BPA art
 - `folder_access_mapping.csv`
     - Folder-scoped access plan. CSV-driven import uses this with `folders_mapping.csv` so each target workspace receives only principals that had access to the mapped source folder subtree.
 - `connections_mapping.csv`
-    - PBIRS datasource-to-gateway datasource planning.
+    - PBIRS datasource-to-gateway datasource planning. Fill names, not IDs; the importer resolves the current Power BI gateway and datasource IDs by name.
+    - For paginated reports, the assessor reads RDL connection properties and resolves shared datasource references when the PBIRS datasource endpoint is incomplete.
 
 - `rls_ols_role_accounts.json` and `rls_ols_role_accounts.csv`
     - Normalized role/account assignments built from item policies, system policies, and effective permissions.
-- `bpa_accounts.json` and `bpa_accounts.csv`
-    - Per-item BPA status enriched with attached principals and RED/YELLOW category breakdown.
 - `model_snapshot.json` (optional input)
     - If present in convert/validate input, semantic BPA uses this explicit model snapshot instead of heuristic-only fallback.
 - `.pbix` model extraction (automatic)

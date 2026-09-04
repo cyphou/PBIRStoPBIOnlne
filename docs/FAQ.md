@@ -42,9 +42,11 @@ Only for Windows auth and the **import/deploy phase**. Windows auth uses `reques
 
 ### What does GREEN/YELLOW/RED mean?
 
-- 🟢 **GREEN** — Ready to migrate as-is
-- 🟡 **YELLOW** — Minor adjustments needed (gateway config, Premium capacity)
-- 🔴 **RED** — Significant rework required (unsupported features, deprecated content)
+- 🟢 **GREEN** — Default status when no blocking complexity indicator is detected
+- 🟡 **YELLOW** — RLS is detected and requires role/workspace validation
+- 🔴 **RED** — Any custom visual or subscription is present, or another blocking migration issue is detected
+
+The complexity rule is deliberately conservative: custom visuals and subscriptions require explicit target-tenant validation or recreation. Other assessment categories can also contribute warnings or a RED result.
 
 ### How are migration waves determined?
 

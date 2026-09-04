@@ -67,6 +67,49 @@ class TestMigrationAssessment:
         result = MigrationAssessment().assess(catalog)
         assert result["items"][0]["scores"]["subscription_migration"]["score"] == RED
 
+    def test_assess_any_email_subscription_does_not_change_global_status(self):
+        item = {
+            "Id": "subscription",
+            "Name": "Email Report",
+            "Path": "/Reports/Email",
+            "Type": "PowerBIReport",
+            "datasources": [],
+            "policies": [],
+            "subscriptions": [{"DeliveryExtension": "Report Server Email"}],
+            "custom_visuals": [],
+        }
+        result = MigrationAssessment().assess({"items": [item]})
+        assert result["items"][0]["overall"] == GREEN
+
+    def test_assess_rls_does_not_change_global_status(self):
+        item = {
+            "Id": "rls",
+            "Name": "Secured Report",
+            "Path": "/Reports/Secured",
+            "Type": "PowerBIReport",
+            "datasources": [],
+            "policies": [],
+            "subscriptions": [],
+            "custom_visuals": [],
+            "has_rls": True,
+        }
+        result = MigrationAssessment().assess({"items": [item]})
+        assert result["items"][0]["overall"] == GREEN
+
+    def test_assess_marketplace_custom_visual_keeps_global_rules(self):
+        item = {
+            "Id": "visual",
+            "Name": "Custom Visual Report",
+            "Path": "/Reports/Visual",
+            "Type": "PowerBIReport",
+            "datasources": [],
+            "policies": [],
+            "subscriptions": [],
+            "custom_visuals": [{"name": "Custom", "source": "marketplace"}],
+        }
+        result = MigrationAssessment().assess({"items": [item]})
+        assert result["items"][0]["overall"] == GREEN
+
     def test_wave_planning(self, sample_assessment):
         waves = sample_assessment["waves"]
         assert len(waves) >= 1

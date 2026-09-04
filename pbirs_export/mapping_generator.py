@@ -334,11 +334,12 @@ class MappingGenerator:
             report_type          — PowerBIReport / Report
             datasource_type      — SQL / Oracle / ODBC etc.
             connection_string    — original connection string
-            server_name          — extracted server/host name
-            database_name        — extracted database/catalog name
             needs_gateway        — yes/no
-            target_gateway_id    — (TO FILL) PBI Online gateway ID
-            target_datasource_id — (TO FILL) gateway datasource ID
+            target_workspace     — (TO FILL) target PBI Online workspace name
+            target_gateway_name  — (TO FILL) PBI Online gateway name
+            target_datasource_name — (TO FILL) gateway datasource name
+            target_gateway_id    — legacy optional gateway ID
+            target_datasource_id — legacy optional datasource ID
             notes                — (TO FILL)
         """
         rows: list[dict[str, str]] = []
@@ -360,6 +361,7 @@ class MappingGenerator:
                 "server_name": server,
                 "database_name": database,
                 "needs_gateway": "yes" if needs_gw else "no",
+                "target_workspace": "",
             })
 
         # Shared datasources
@@ -378,6 +380,7 @@ class MappingGenerator:
                 "server_name": server,
                 "database_name": database,
                 "needs_gateway": "yes" if needs_gw else "no",
+                "target_workspace": "",
             })
 
         # Deduplicate by (report_path, connection_string)
@@ -385,16 +388,17 @@ class MappingGenerator:
 
         csv_path = output_dir / "connections_mapping.csv"
         with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             writer.writerow([
                 "report_name",
                 "report_path",
                 "report_type",
                 "datasource_type",
                 "connection_string",
-                "server_name",
-                "database_name",
                 "needs_gateway",
+                "target_workspace",
+                "target_gateway_name",
+                "target_datasource_name",
                 "target_gateway_id",
                 "target_datasource_id",
                 "notes",
@@ -406,9 +410,10 @@ class MappingGenerator:
                     row["report_type"],
                     row["datasource_type"],
                     row["connection_string"],
-                    row["server_name"],
-                    row["database_name"],
                     row["needs_gateway"],
+                    row["target_workspace"],
+                    "",  # target_gateway_name
+                    "",  # target_datasource_name
                     "",  # target_gateway_id
                     "",  # target_datasource_id
                     "",  # notes
